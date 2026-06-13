@@ -18,6 +18,9 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/videos")
 public class StreamingController {
+    private static final MediaType HLS_PLAYLIST = MediaType.parseMediaType("application/vnd.apple.mpegurl;charset=UTF-8");
+    private static final MediaType HLS_SEGMENT = MediaType.parseMediaType("video/mp2t");
+
     private final CatalogService catalogService;
     private final MediaStorageService mediaStorage;
 
@@ -41,6 +44,19 @@ public class StreamingController {
             .body(resource);
     }
 
+    @GetMapping("/{videoId}/hls/{filename:.+}")
+    public ResponseEntity<Resource> hls(@PathVariable Long videoId, @PathVariable String filename) {
+        catalogService.findVideo(videoId);
+        Resource resource = mediaStorage.hlsSegment(videoId, filename);
+        if (!resource.exists() || !resource.isReadable()) {
+            throw new NotFoundException("Fichier HLS introuvable: " + filename);
+        }
+        return ResponseEntity.ok()
+            .contentType(hlsMediaType(filename))
+            .cacheControl(hlsCacheControl(filename))
+            .body(resource);
+    }
+
     @GetMapping(value = "/{videoId}/subtitles", produces = "text/vtt;charset=UTF-8")
     public ResponseEntity<Resource> subtitles(@PathVariable Long videoId) {
         CatalogVideo video = catalogService.findVideo(videoId);
@@ -52,5 +68,15 @@ public class StreamingController {
             .contentType(MediaType.parseMediaType("text/vtt;charset=UTF-8"))
             .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
             .body(resource);
+    }
+
+    private MediaType hlsMediaType(String filename) {
+        return filename.endsWith(".m3u8") ? HLS_PLAYLIST : HLS_SEGMENT;
+    }
+
+    private CacheControl hlsCacheControl(String filename) {
+        return filename.endsWith(".m3u8")
+            ? CacheControl.noCache()
+            : CacheControl.maxAge(30, TimeUnit.DAYS).cachePublic();
     }
 }
