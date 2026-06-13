@@ -7,6 +7,7 @@
 
 # Spring Boot / local runtime
 backend/data/
+data/
 backend/*.mv.db
 backend/*.trace.db
 *.pid
