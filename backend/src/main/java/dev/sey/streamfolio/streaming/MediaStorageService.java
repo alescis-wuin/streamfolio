@@ -13,6 +13,7 @@ public class MediaStorageService {
     private static final String CLASSPATH_MEDIA_PREFIX = "media/";
     private static final String LOCAL_ORIGINALS_DIR = "originals";
     private static final String LOCAL_SUBTITLES_DIR = "subtitles";
+    private static final String LOCAL_HLS_DIR = "hls";
 
     private final MediaStorageMode mode;
     private final Path root;
@@ -26,15 +27,39 @@ public class MediaStorageService {
     public Resource video(String filename) {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
-            case LOCAL -> local(LOCAL_ORIGINALS_DIR, filename);
+            case LOCAL -> new FileSystemResource(localOriginalPath(filename));
         };
     }
 
     public Resource subtitles(String filename) {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
-            case LOCAL -> local(LOCAL_SUBTITLES_DIR, filename);
+            case LOCAL -> new FileSystemResource(localSubtitlePath(filename));
         };
+    }
+
+    public Path localOriginalPath(String filename) {
+        return localPath(LOCAL_ORIGINALS_DIR, filename);
+    }
+
+    public Path localSubtitlePath(String filename) {
+        return localPath(LOCAL_SUBTITLES_DIR, filename);
+    }
+
+    public Path hlsDirectory(Long videoId) {
+        if (videoId == null || videoId <= 0) {
+            throw new BadRequestException("Identifiant vidéo invalide.");
+        }
+        Path hlsRoot = root.resolve(LOCAL_HLS_DIR).normalize();
+        Path directory = hlsRoot.resolve(videoId.toString()).normalize();
+        if (!directory.startsWith(hlsRoot)) {
+            throw new BadRequestException("Chemin HLS invalide.");
+        }
+        return directory;
+    }
+
+    public Path hlsMasterPlaylist(Long videoId) {
+        return hlsDirectory(videoId).resolve("master.m3u8");
     }
 
     public MediaStorageMode mode() {
@@ -49,13 +74,13 @@ public class MediaStorageService {
         return new ClassPathResource(CLASSPATH_MEDIA_PREFIX + safeFilename(filename));
     }
 
-    private Resource local(String directory, String filename) {
+    private Path localPath(String directory, String filename) {
         Path directoryPath = root.resolve(directory).normalize();
         Path mediaPath = directoryPath.resolve(safeFilename(filename)).normalize();
         if (!mediaPath.startsWith(directoryPath)) {
             throw new BadRequestException("Chemin média invalide.");
         }
-        return new FileSystemResource(mediaPath);
+        return mediaPath;
     }
 
     private String safeFilename(String filename) {
