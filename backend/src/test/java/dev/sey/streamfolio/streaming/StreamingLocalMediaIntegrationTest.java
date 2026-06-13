@@ -6,6 +6,7 @@ import static org.springframework.security.test.web.servlet.setup.SecurityMockMv
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import jakarta.servlet.http.Cookie;
@@ -54,6 +55,17 @@ class StreamingLocalMediaIntegrationTest {
     }
 
     @Test
+    void playbackExposesHlsWhenPlaylistExists() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(get("/api/videos/1").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.streamUrl").value("/api/videos/1/stream"))
+            .andExpect(jsonPath("$.hlsUrl").value("/api/videos/1/hls/master.m3u8"))
+            .andExpect(jsonPath("$.streamingMode").value("HLS_AVAILABLE"));
+    }
+
+    @Test
     void authenticatedUserCanStreamFromLocalMediaStorage() throws Exception {
         Cookie session = login();
 
@@ -63,6 +75,19 @@ class StreamingLocalMediaIntegrationTest {
             .andExpect(status().isPartialContent())
             .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"))
             .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("video/mp4")));
+    }
+
+    @Test
+    void authenticatedUserCanReadHlsPlaylistAndSegment() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(get("/api/videos/1/hls/master.m3u8").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/vnd.apple.mpegurl")));
+
+        mockMvc.perform(get("/api/videos/1/hls/segment_000.ts").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("video/mp2t")));
     }
 
     @Test
@@ -81,6 +106,18 @@ class StreamingLocalMediaIntegrationTest {
 
         mockMvc.perform(get("/api/videos/1/stream").cookie(session))
             .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void missingHlsPlaylistKeepsMp4FallbackInPlayback() throws Exception {
+        Cookie session = login();
+        Files.deleteIfExists(MEDIA_ROOT.resolve("hls/1/master.m3u8"));
+
+        mockMvc.perform(get("/api/videos/1").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.streamUrl").value("/api/videos/1/stream"))
+            .andExpect(jsonPath("$.hlsUrl").doesNotExist())
+            .andExpect(jsonPath("$.streamingMode").value("HLS_MISSING"));
     }
 
     private Cookie login() throws Exception {
@@ -105,9 +142,11 @@ class StreamingLocalMediaIntegrationTest {
     private static void prepareLocalMedia() throws IOException {
         Files.createDirectories(MEDIA_ROOT.resolve("originals"));
         Files.createDirectories(MEDIA_ROOT.resolve("subtitles"));
-        Files.createDirectories(MEDIA_ROOT.resolve("hls"));
+        Files.createDirectories(MEDIA_ROOT.resolve("hls/1"));
         copyClasspathMedia("media/aurora-drift.mp4", MEDIA_ROOT.resolve("originals/aurora-drift.mp4"));
         copyClasspathMedia("media/aurora-drift.vtt", MEDIA_ROOT.resolve("subtitles/aurora-drift.vtt"));
+        Files.writeString(MEDIA_ROOT.resolve("hls/1/master.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:1.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n");
+        Files.writeString(MEDIA_ROOT.resolve("hls/1/segment_000.ts"), "fake segment");
     }
 
     private static void copyClasspathMedia(String source, Path target) throws IOException {
