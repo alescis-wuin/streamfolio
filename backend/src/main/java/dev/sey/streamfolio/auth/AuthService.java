@@ -12,6 +12,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import java.util.concurrent.ConcurrentHashMap;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -29,6 +30,7 @@ public class AuthService {
     private final Clock clock;
     private final Map<String, SessionData> sessions = new ConcurrentHashMap<>();
 
+    @Autowired
     public AuthService(UserAccountRepository users,
                        PasswordEncoder passwordEncoder,
                        @Value("${streamfolio.security.session-ttl:PT30M}") Duration sessionTtl) {
