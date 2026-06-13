@@ -83,7 +83,7 @@ class SecurityIntegrationTest {
         mockMvc.perform(get("/api/videos/1/stream")
                 .cookie(session)
                 .header(HttpHeaders.RANGE, "bytes=0-1023"))
-            .andExpect(status().isOk())
+            .andExpect(status().isPartialContent())
             .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"));
     }
 
