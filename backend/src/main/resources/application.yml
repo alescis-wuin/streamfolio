@@ -37,6 +37,9 @@ streamfolio:
     cookie-name: STREAMFOLIO_SESSION
     cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
     cookie-same-site: Strict
+  media:
+    storage: classpath
+    root: ./data/media
 
 logging:
   level:
