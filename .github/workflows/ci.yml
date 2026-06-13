@@ -41,7 +41,7 @@ jobs:
 
       - name: Maven tests
         working-directory: backend
-        run: mvn -B test
+        run: mvn -B clean test
 
       - name: Build application JAR
         working-directory: backend
