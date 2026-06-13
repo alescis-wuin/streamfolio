@@ -40,6 +40,11 @@ streamfolio:
   media:
     storage: classpath
     root: ./data/media
+  ffmpeg:
+    binary: ${STREAMFOLIO_FFMPEG_BINARY:ffmpeg}
+    probe-timeout: PT5S
+    transcode-timeout: PT5M
+    hls-segment-time: 4
 
 logging:
   level:
