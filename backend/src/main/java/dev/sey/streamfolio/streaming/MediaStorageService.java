@@ -14,6 +14,7 @@ public class MediaStorageService {
     private static final String LOCAL_ORIGINALS_DIR = "originals";
     private static final String LOCAL_SUBTITLES_DIR = "subtitles";
     private static final String LOCAL_HLS_DIR = "hls";
+    private static final String HLS_MASTER_PLAYLIST = "master.m3u8";
 
     private final MediaStorageMode mode;
     private final Path root;
@@ -38,6 +39,14 @@ public class MediaStorageService {
         };
     }
 
+    public Resource hlsPlaylist(Long videoId) {
+        return new FileSystemResource(hlsMasterPlaylist(videoId));
+    }
+
+    public Resource hlsSegment(Long videoId, String filename) {
+        return new FileSystemResource(hlsFile(videoId, filename));
+    }
+
     public Path localOriginalPath(String filename) {
         return localPath(LOCAL_ORIGINALS_DIR, filename);
     }
@@ -59,7 +68,11 @@ public class MediaStorageService {
     }
 
     public Path hlsMasterPlaylist(Long videoId) {
-        return hlsDirectory(videoId).resolve("master.m3u8");
+        return hlsDirectory(videoId).resolve(HLS_MASTER_PLAYLIST);
+    }
+
+    public boolean hlsMasterPlaylistExists(Long videoId) {
+        return hlsPlaylist(videoId).exists() && hlsPlaylist(videoId).isReadable();
     }
 
     public MediaStorageMode mode() {
@@ -83,6 +96,15 @@ public class MediaStorageService {
         return mediaPath;
     }
 
+    private Path hlsFile(Long videoId, String filename) {
+        Path directory = hlsDirectory(videoId);
+        Path file = directory.resolve(safeHlsFilename(filename)).normalize();
+        if (!file.startsWith(directory)) {
+            throw new BadRequestException("Chemin HLS invalide.");
+        }
+        return file;
+    }
+
     private String safeFilename(String filename) {
         if (filename == null || filename.isBlank()) {
             throw new BadRequestException("Nom de fichier média manquant.");
@@ -90,6 +112,14 @@ public class MediaStorageService {
         String value = filename.trim();
         if (value.contains("/") || value.contains("\\") || value.contains("..")) {
             throw new BadRequestException("Nom de fichier média invalide.");
+        }
+        return value;
+    }
+
+    private String safeHlsFilename(String filename) {
+        String value = safeFilename(filename);
+        if (!value.endsWith(".ts") && !value.endsWith(".m3u8")) {
+            throw new BadRequestException("Extension HLS invalide.");
         }
         return value;
     }
