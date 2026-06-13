@@ -5,9 +5,17 @@ COOKIE_JAR="$(mktemp)"
 trap 'rm -f "$COOKIE_JAR"' EXIT
 
 curl -fsS "$BASE_URL/api/health" | jq .
-curl -fsS -c "$COOKIE_JAR" -X POST "$BASE_URL/api/auth/login" \
-  -H 'Content-Type: application/json' \
-  -d '{"email":"alexis@example.dev","password":"demo1234"}' | jq '.user.email'
+for i in {1..30}; do
+  if curl -fsS -c "$COOKIE_JAR" -X POST "$BASE_URL/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"alexis@example.dev","password":"demo1234"}' | jq '.user.email'; then
+    break
+  fi
+  if [ "$i" -eq 30 ]; then
+    exit 1
+  fi
+  sleep 1
+done
 
 curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/me" | jq .
 curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/sections" | jq '.sections | length'
