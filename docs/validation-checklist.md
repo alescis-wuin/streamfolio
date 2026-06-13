@@ -1,6 +1,6 @@
-# Checklist de validation phase 2.5
+# Checklist de validation
 
-Objectif : vérifier que la couche sécurité, les tests, le smoke test et le parcours utilisateur sont stables avant de passer au pipeline FFmpeg/HLS.
+Objectif : vérifier que la couche sécurité, les tests, le smoke test, le parcours utilisateur et le stockage média local sont stables avant de passer au pipeline FFmpeg/HLS.
 
 ## 1. Validation backend
 
@@ -16,6 +16,8 @@ Critères attendus :
 - tests unitaires `AuthServiceTest` OK ;
 - tests sécurité `SecurityIntegrationTest` OK ;
 - tests catalogue `CatalogServiceIntegrationTest` OK ;
+- tests stockage média `MediaStorageServiceTest` OK ;
+- tests streaming local `StreamingLocalMediaIntegrationTest` OK ;
 - contexte Spring chargé sans erreur.
 
 ## 2. Validation statique
@@ -39,7 +41,7 @@ Critères attendus :
 - scripts shell valides ;
 - script Python compilable.
 
-## 3. Validation applicative
+## 3. Validation applicative classpath
 
 Terminal 1 :
 
@@ -64,7 +66,30 @@ Critères attendus :
 - endpoint vidéo protégé accessible après login ;
 - logout OK.
 
-## 4. Validation sécurité minimale
+## 4. Validation applicative local-media
+
+Depuis la racine :
+
+```bash
+bash scripts/prepare-local-media.sh
+```
+
+Terminal 1 :
+
+```bash
+cd backend
+mvn spring-boot:run -Dspring-boot.run.profiles=local-media
+```
+
+Terminal 2, depuis la racine :
+
+```bash
+./scripts/smoke.sh
+```
+
+Critères attendus : mêmes résultats que le mode classpath, mais les fichiers sont lus depuis `backend/data/media`.
+
+## 5. Validation sécurité minimale
 
 À vérifier manuellement ou par test HTTP :
 
@@ -76,7 +101,7 @@ Critères attendus :
 - le cookie de session contient `HttpOnly` et `SameSite=Strict` ;
 - `/api/auth/logout` invalide la session.
 
-## 5. Validation UI
+## 6. Validation UI
 
 Parcours recommandé dans le navigateur :
 
@@ -93,7 +118,7 @@ Parcours recommandé dans le navigateur :
 11. se déconnecter ;
 12. vérifier qu'une URL vidéo directe n'est plus accessible.
 
-## 6. Validation CI
+## 7. Validation CI
 
 Sur GitHub Actions, la CI doit valider :
 
@@ -106,12 +131,13 @@ Sur GitHub Actions, la CI doit valider :
 - smoke test HTTP ;
 - build Docker.
 
-## 7. Passage à la phase suivante
+## 8. Passage à la phase suivante
 
-La phase 3 ne doit commencer que si :
+La phase FFmpeg/HLS ne doit commencer que si :
 
 - `mvn clean test` est vert ;
 - `mvn spring-boot:run` démarre sans erreur ;
-- `./scripts/smoke.sh` passe ;
+- `./scripts/smoke.sh` passe en mode classpath ;
+- `./scripts/smoke.sh` passe en mode local-media ;
 - la CI GitHub Actions est verte ;
 - le parcours UI ci-dessus ne montre pas de régression bloquante.
