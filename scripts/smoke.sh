@@ -1,12 +1,17 @@
 #!/usr/bin/env bash
 set -euo pipefail
 BASE_URL="${BASE_URL:-http://localhost:8080}"
+COOKIE_JAR="$(mktemp)"
+trap 'rm -f "$COOKIE_JAR"' EXIT
 
 curl -fsS "$BASE_URL/api/health" | jq .
-TOKEN=$(curl -fsS -X POST "$BASE_URL/api/auth/login"   -H 'Content-Type: application/json'   -d '{"email":"alexis@example.dev","password":"demo1234"}' | jq -r .token)
+curl -fsS -c "$COOKIE_JAR" -X POST "$BASE_URL/api/auth/login" \
+  -H 'Content-Type: application/json' \
+  -d '{"email":"alexis@example.dev","password":"demo1234"}' | jq '.user.email'
 
-curl -fsS "$BASE_URL/api/me" -H "Authorization: Bearer $TOKEN" | jq .
-curl -fsS "$BASE_URL/api/sections" -H "Authorization: Bearer $TOKEN" | jq '.sections | length'
-curl -fsS "$BASE_URL/api/genres" -H "Authorization: Bearer $TOKEN" | jq .
-curl -fsS "$BASE_URL/api/catalog?type=MOVIE" -H "Authorization: Bearer $TOKEN" | jq 'length'
-curl -fsSI -H 'Range: bytes=0-1023' "$BASE_URL/api/videos/1/stream" | grep -Ei 'HTTP/|accept-ranges|content-type|content-length|content-range' || true
+curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/me" | jq .
+curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/sections" | jq '.sections | length'
+curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/genres" | jq .
+curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/catalog?type=MOVIE" | jq 'length'
+curl -fsSI -b "$COOKIE_JAR" -H 'Range: bytes=0-1023' "$BASE_URL/api/videos/1/stream" | grep -Ei 'HTTP/|accept-ranges|content-type|content-length|content-range' || true
+curl -fsS -b "$COOKIE_JAR" -X POST "$BASE_URL/api/auth/logout" -o /dev/null
