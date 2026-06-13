@@ -1,4 +1,4 @@
-# Architecture V1.1
+# Architecture V1.2
 
 ## Vue logique
 
@@ -11,11 +11,13 @@ Navigateur / PWA
   ├─ fiches détail
   └─ lecteur vidéo HTML5
         │
-        ├─ fetch JSON
-        └─ flux vidéo MP4 + sous-titres
+        ├─ fetch JSON avec cookie de session same-origin
+        └─ flux vidéo MP4 + sous-titres protégés
         │
         ▼
 Spring Boot
+  ├─ SecurityConfig
+  ├─ AuthFilter
   ├─ AuthController
   ├─ CatalogController
   ├─ StreamingController
@@ -29,19 +31,31 @@ H2 en mémoire + médias classpath
 
 ## Modules backend
 
-- `auth` : connexion, jetons de démonstration, filtre bearer.
+- `config` : configuration Spring Security.
+- `auth` : login, logout, BCrypt, cookie de session, filtre d'authentification.
 - `catalog` : catalogue, sections, détails, genres, progression, watchlist.
 - `domain` : entités JPA.
-- `repository` : accès aux données.
+- `repository` : accès aux données, avec préchargement ciblé pour limiter les N+1.
 - `streaming` : flux MP4 et sous-titres.
 - `seed` : données initiales idempotentes.
 - `common` : erreurs API.
+
+## Sécurité applicative
+
+- Authentification via Spring Security.
+- Mot de passe de démonstration encodé en BCrypt.
+- Session applicative stockée côté serveur, avec durée de vie configurable.
+- Cookie `HttpOnly`, `SameSite=Strict`, `Path=/`.
+- Option `Secure` configurable par variable d'environnement pour un déploiement HTTPS.
+- Endpoints vidéo protégés : metadata, stream, sous-titres et progression.
+- Logout serveur avec invalidation de session.
 
 ## Endpoints principaux
 
 ```text
 GET    /api/health
 POST   /api/auth/login
+POST   /api/auth/logout
 GET    /api/me
 GET    /api/sections
 GET    /api/genres
@@ -67,7 +81,8 @@ CatalogTitle 1 ── * genres
 ## Limites assumées
 
 - Base H2 en mémoire par défaut, avec profil optionnel `persistent`.
-- Pas de comptes réels.
+- Compte de démonstration préchargé.
+- Sessions en mémoire, donc non partagées entre plusieurs instances.
 - Pas de stockage externe.
 - Pas de transcodage.
-- Pas de paiement, abonnement, DRM ou contenu protégé.
+- Pas de paiement, abonnement, DRM ou contenu protégé réel.
