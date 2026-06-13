@@ -1,8 +1,10 @@
 package dev.sey.streamfolio.catalog.dto;
 
+import com.fasterxml.jackson.annotation.JsonInclude;
 import dev.sey.streamfolio.domain.ContentType;
 import java.util.List;
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 public record PlaybackDto(
     Long videoId,
     String titleSlug,
