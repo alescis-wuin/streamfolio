@@ -7,5 +7,6 @@ services:
       SPRING_PROFILES_ACTIVE: ${SPRING_PROFILES_ACTIVE:-docker}
       STREAMFOLIO_MEDIA_STORAGE: ${STREAMFOLIO_MEDIA_STORAGE:-classpath}
       STREAMFOLIO_MEDIA_ROOT: ${STREAMFOLIO_MEDIA_ROOT:-/app/data/media}
+      STREAMFOLIO_FFMPEG_BINARY: ${STREAMFOLIO_FFMPEG_BINARY:-ffmpeg}
     volumes:
       - ./data/media:/app/data/media
