@@ -2,7 +2,6 @@ package dev.sey.streamfolio.auth;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import dev.sey.streamfolio.common.UnauthorizedException;
@@ -58,6 +57,22 @@ class AuthServiceTest {
         assertThatThrownBy(() -> authService.login(new LoginRequest("alexis@example.dev", "bad-password")))
             .isInstanceOf(UnauthorizedException.class)
             .hasMessage("Identifiants invalides.");
+    }
+
+    @Test
+    void expiredSessionIsRejected() {
+        AuthService shortSessionAuth = new AuthService(
+            users,
+            passwordEncoder,
+            Duration.ZERO,
+            Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC)
+        );
+        UserAccount user = user("alexis@example.dev", "demo1234");
+        when(users.findByEmail("alexis@example.dev")).thenReturn(Optional.of(user));
+
+        LoginResult result = shortSessionAuth.login(new LoginRequest("alexis@example.dev", "demo1234"));
+
+        assertThat(shortSessionAuth.findByToken(result.token())).isEmpty();
     }
 
     @Test
