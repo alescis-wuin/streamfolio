@@ -1,0 +1,117 @@
+# Checklist de validation phase 2.5
+
+Objectif : vérifier que la couche sécurité, les tests, le smoke test et le parcours utilisateur sont stables avant de passer au pipeline FFmpeg/HLS.
+
+## 1. Validation backend
+
+Depuis `backend/` :
+
+```bash
+mvn clean test
+```
+
+Critères attendus :
+
+- compilation Java OK ;
+- tests unitaires `AuthServiceTest` OK ;
+- tests sécurité `SecurityIntegrationTest` OK ;
+- tests catalogue `CatalogServiceIntegrationTest` OK ;
+- contexte Spring chargé sans erreur.
+
+## 2. Validation statique
+
+Depuis `backend/` :
+
+```bash
+node --check src/main/resources/static/app.js
+```
+
+Depuis la racine :
+
+```bash
+bash -n scripts/*.sh
+python3 -m py_compile scripts/regenerate-posters.py
+```
+
+Critères attendus :
+
+- JavaScript syntaxiquement valide ;
+- scripts shell valides ;
+- script Python compilable.
+
+## 3. Validation applicative
+
+Terminal 1 :
+
+```bash
+cd backend
+mvn spring-boot:run
+```
+
+Terminal 2, depuis la racine :
+
+```bash
+./scripts/smoke.sh
+```
+
+Critères attendus :
+
+- `/api/health` répond ;
+- login OK ;
+- cookie de session conservé par le smoke test ;
+- `/api/me` répond après login ;
+- sections, genres et catalogue répondent ;
+- endpoint vidéo protégé accessible après login ;
+- logout OK.
+
+## 4. Validation sécurité minimale
+
+À vérifier manuellement ou par test HTTP :
+
+- `/api/videos/1` sans cookie renvoie `401` ;
+- `/api/videos/1/stream` sans cookie renvoie `401` ;
+- `/api/videos/1/subtitles` sans cookie renvoie `401` ;
+- `/api/videos/1/progress` sans cookie renvoie `401` ;
+- le JSON de login ne contient pas de token ;
+- le cookie de session contient `HttpOnly` et `SameSite=Strict` ;
+- `/api/auth/logout` invalide la session.
+
+## 5. Validation UI
+
+Parcours recommandé dans le navigateur :
+
+1. ouvrir `http://localhost:8080` ;
+2. se connecter avec le compte de démonstration ;
+3. vérifier l'accueil ;
+4. ouvrir Films et Séries ;
+5. chercher un titre ;
+6. ouvrir une fiche détail ;
+7. ajouter puis retirer un titre de Ma liste ;
+8. lancer une vidéo ;
+9. vérifier les sous-titres ;
+10. vérifier la reprise de progression ;
+11. se déconnecter ;
+12. vérifier qu'une URL vidéo directe n'est plus accessible.
+
+## 6. Validation CI
+
+Sur GitHub Actions, la CI doit valider :
+
+- checks shell ;
+- check JavaScript ;
+- check Python ;
+- `mvn clean test` ;
+- build JAR ;
+- démarrage application ;
+- smoke test HTTP ;
+- build Docker.
+
+## 7. Passage à la phase suivante
+
+La phase 3 ne doit commencer que si :
+
+- `mvn clean test` est vert ;
+- `mvn spring-boot:run` démarre sans erreur ;
+- `./scripts/smoke.sh` passe ;
+- la CI GitHub Actions est verte ;
+- le parcours UI ci-dessus ne montre pas de régression bloquante.
