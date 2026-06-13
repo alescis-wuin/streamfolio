@@ -5,10 +5,15 @@ import dev.sey.streamfolio.domain.UserAccount;
 import dev.sey.streamfolio.domain.WatchlistItem;
 import java.util.List;
 import java.util.Optional;
+import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface WatchlistItemRepository extends JpaRepository<WatchlistItem, Long> {
     boolean existsByUserAndTitle(UserAccount user, CatalogTitle title);
+
+    @EntityGraph(attributePaths = {"title"})
     Optional<WatchlistItem> findByUserAndTitle(UserAccount user, CatalogTitle title);
+
+    @EntityGraph(attributePaths = {"title"})
     List<WatchlistItem> findByUser(UserAccount user);
 }
