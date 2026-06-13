@@ -6,6 +6,7 @@ import dev.sey.streamfolio.catalog.dto.ProgressDto;
 import dev.sey.streamfolio.catalog.dto.ProgressUpdateRequest;
 import dev.sey.streamfolio.catalog.dto.SectionDto;
 import dev.sey.streamfolio.catalog.dto.SectionsResponse;
+import dev.sey.streamfolio.catalog.dto.StreamingMode;
 import dev.sey.streamfolio.catalog.dto.TitleCardDto;
 import dev.sey.streamfolio.catalog.dto.TitleDetailDto;
 import dev.sey.streamfolio.catalog.dto.VideoDto;
@@ -21,6 +22,8 @@ import dev.sey.streamfolio.repository.CatalogTitleRepository;
 import dev.sey.streamfolio.repository.CatalogVideoRepository;
 import dev.sey.streamfolio.repository.UserProgressRepository;
 import dev.sey.streamfolio.repository.WatchlistItemRepository;
+import dev.sey.streamfolio.streaming.MediaStorageMode;
+import dev.sey.streamfolio.streaming.MediaStorageService;
 import java.time.Instant;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -41,16 +44,19 @@ public class CatalogService {
     private final UserProgressRepository progressRepository;
     private final WatchlistItemRepository watchlistRepository;
     private final AuthService authService;
+    private final MediaStorageService mediaStorage;
 
     public CatalogService(CatalogTitleRepository titles, CatalogVideoRepository videos,
                           UserProgressRepository progressRepository,
                           WatchlistItemRepository watchlistRepository,
-                          AuthService authService) {
+                          AuthService authService,
+                          MediaStorageService mediaStorage) {
         this.titles = titles;
         this.videos = videos;
         this.progressRepository = progressRepository;
         this.watchlistRepository = watchlistRepository;
         this.authService = authService;
+        this.mediaStorage = mediaStorage;
     }
 
     @Transactional(readOnly = true)
@@ -122,6 +128,8 @@ public class CatalogService {
         CatalogVideo video = findVideo(videoId);
         CatalogTitle title = video.getTitle();
         UserCatalogContext context = contextFor(user);
+        StreamingMode streamingMode = streamingMode(video.getId());
+        String hlsUrl = streamingMode == StreamingMode.HLS_AVAILABLE ? "/api/videos/" + video.getId() + "/hls/master.m3u8" : null;
         return new PlaybackDto(
             video.getId(),
             title.getSlug(),
@@ -135,6 +143,8 @@ public class CatalogService {
             title.getMaturityRating(),
             List.copyOf(title.getGenres()),
             "/api/videos/" + video.getId() + "/stream",
+            hlsUrl,
+            streamingMode,
             "/api/videos/" + video.getId() + "/subtitles",
             progressFor(video, context)
         );
@@ -286,6 +296,13 @@ public class CatalogService {
             byId.putIfAbsent(video.getId(), video);
         }
         return List.copyOf(byId.values());
+    }
+
+    private StreamingMode streamingMode(Long videoId) {
+        if (mediaStorage.mode() != MediaStorageMode.LOCAL) {
+            return StreamingMode.MP4_ONLY;
+        }
+        return mediaStorage.hlsMasterPlaylistExists(videoId) ? StreamingMode.HLS_AVAILABLE : StreamingMode.HLS_MISSING;
     }
 
     private boolean matches(CatalogTitle title, String query) {
