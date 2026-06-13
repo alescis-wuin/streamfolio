@@ -68,20 +68,20 @@ class TranscodingServiceIntegrationTest {
         try {
             Path binary = Files.createTempFile("streamfolio-fake-ffmpeg", "");
             Files.writeString(binary, """
-                #!/usr/bin/env bash
-                out="${@: -1}"
-                dir="$(dirname "$out")"
-                mkdir -p "$dir"
-                cat > "$out" <<'EOF'
-                #EXTM3U
-                #EXT-X-VERSION:3
-                #EXT-X-PLAYLIST-TYPE:VOD
-                #EXTINF:1.000000,
-                segment_000.ts
-                #EXT-X-ENDLIST
-                EOF
-                printf 'fake segment' > "$dir/segment_000.ts"
-                """);
+#!/usr/bin/env bash
+out="${@: -1}"
+dir="$(dirname "$out")"
+mkdir -p "$dir"
+cat > "$out" <<'EOF'
+#EXTM3U
+#EXT-X-VERSION:3
+#EXT-X-PLAYLIST-TYPE:VOD
+#EXTINF:1.000000,
+segment_000.ts
+#EXT-X-ENDLIST
+EOF
+printf 'fake segment' > "$dir/segment_000.ts"
+""");
             if (!binary.toFile().setExecutable(true)) {
                 throw new IOException("Unable to mark fake ffmpeg as executable");
             }
