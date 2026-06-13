@@ -15,7 +15,7 @@ spring:
     password:
   h2:
     console:
-      enabled: true
+      enabled: false
       path: /h2-console
   jpa:
     hibernate:
@@ -30,6 +30,13 @@ spring:
       cache:
         # Développement : évite de garder les anciennes miniatures/CSS/JS lors des itérations UI.
         period: 0
+
+streamfolio:
+  security:
+    session-ttl: PT30M
+    cookie-name: STREAMFOLIO_SESSION
+    cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
+    cookie-same-site: Strict
 
 logging:
   level:
