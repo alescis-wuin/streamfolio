@@ -16,6 +16,8 @@ public record PlaybackDto(
     String maturityRating,
     List<String> genres,
     String streamUrl,
+    String hlsUrl,
+    StreamingMode streamingMode,
     String subtitlesUrl,
     ProgressDto progress
 ) {
