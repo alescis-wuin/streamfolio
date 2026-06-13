@@ -66,6 +66,10 @@ class SecurityIntegrationTest {
             .andExpect(status().isUnauthorized());
         mockMvc.perform(get("/api/videos/1/subtitles"))
             .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/videos/1/hls/master.m3u8"))
+            .andExpect(status().isUnauthorized());
+        mockMvc.perform(get("/api/videos/1/hls/segment_000.ts"))
+            .andExpect(status().isUnauthorized());
         mockMvc.perform(put("/api/videos/1/progress")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"positionSeconds\":1,\"durationSeconds\":12}"))
@@ -78,7 +82,8 @@ class SecurityIntegrationTest {
 
         mockMvc.perform(get("/api/videos/1").cookie(session))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.streamUrl").value("/api/videos/1/stream"));
+            .andExpect(jsonPath("$.streamUrl").value("/api/videos/1/stream"))
+            .andExpect(jsonPath("$.streamingMode").value("MP4_ONLY"));
 
         mockMvc.perform(get("/api/videos/1/stream")
                 .cookie(session)
