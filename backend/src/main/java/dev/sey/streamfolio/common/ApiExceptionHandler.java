@@ -1,6 +1,8 @@
 package dev.sey.streamfolio.common;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.validation.FieldError;
@@ -10,6 +12,8 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
 
 @RestControllerAdvice
 public class ApiExceptionHandler {
+    private static final Logger log = LoggerFactory.getLogger(ApiExceptionHandler.class);
+
     @ExceptionHandler(NotFoundException.class)
     public ResponseEntity<ErrorResponse> handleNotFound(NotFoundException exception) {
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
@@ -39,8 +43,9 @@ public class ApiExceptionHandler {
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ErrorResponse> handleUnexpected(Exception exception) {
+        log.error("Unexpected API error", exception);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-            .body(ErrorResponse.of(500, "Internal Server Error", exception.getMessage()));
+            .body(ErrorResponse.of(500, "Internal Server Error", "Erreur interne du serveur."));
     }
 
     private String formatFieldError(FieldError error) {
