@@ -23,6 +23,7 @@ import dev.sey.streamfolio.repository.UserProgressRepository;
 import dev.sey.streamfolio.repository.WatchlistItemRepository;
 import java.time.Instant;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -106,7 +107,7 @@ public class CatalogService {
             .orElseThrow(() -> new NotFoundException("Titre introuvable: " + slug));
         UserCatalogContext context = contextFor(user);
         TitleCardDto card = toCard(title, context);
-        List<VideoDto> videoDtos = title.getVideos().stream()
+        List<VideoDto> videoDtos = uniqueVideos(title).stream()
             .map(video -> toVideoDto(video, context))
             .toList();
         return new TitleDetailDto(
@@ -194,7 +195,7 @@ public class CatalogService {
     }
 
     private TitleCardDto toCard(CatalogTitle title, UserCatalogContext context) {
-        List<CatalogVideo> titleVideos = title.getVideos();
+        List<CatalogVideo> titleVideos = uniqueVideos(title);
         ProgressDto aggregateProgress = aggregateProgress(title, context);
         Long nextVideoId = nextVideo(title, context).map(CatalogVideo::getId).orElse(null);
         boolean inWatchlist = context.watchlistTitleIds().contains(title.getId());
@@ -244,14 +245,15 @@ public class CatalogService {
     }
 
     private ProgressDto aggregateProgress(CatalogTitle title, UserCatalogContext context) {
-        if (title.getVideos().isEmpty()) {
+        List<CatalogVideo> titleVideos = uniqueVideos(title);
+        if (titleVideos.isEmpty()) {
             return ProgressDto.empty(1);
         }
 
         int position = 0;
         int duration = 0;
         Instant updatedAt = null;
-        for (CatalogVideo video : title.getVideos()) {
+        for (CatalogVideo video : titleVideos) {
             duration += video.getDurationSeconds();
             UserProgress progress = context.progressByVideoId().get(video.getId());
             if (progress != null) {
@@ -265,16 +267,25 @@ public class CatalogService {
     }
 
     private Optional<CatalogVideo> nextVideo(CatalogTitle title, UserCatalogContext context) {
-        if (title.getVideos().isEmpty()) {
+        List<CatalogVideo> titleVideos = uniqueVideos(title);
+        if (titleVideos.isEmpty()) {
             return Optional.empty();
         }
-        for (CatalogVideo video : title.getVideos()) {
+        for (CatalogVideo video : titleVideos) {
             ProgressDto progress = progressFor(video, context);
             if (!progress.completed()) {
                 return Optional.of(video);
             }
         }
-        return Optional.of(title.getVideos().get(0));
+        return Optional.of(titleVideos.get(0));
+    }
+
+    private List<CatalogVideo> uniqueVideos(CatalogTitle title) {
+        Map<Long, CatalogVideo> byId = new LinkedHashMap<>();
+        for (CatalogVideo video : title.getVideos()) {
+            byId.putIfAbsent(video.getId(), video);
+        }
+        return List.copyOf(byId.values());
     }
 
     private boolean matches(CatalogTitle title, String query) {
