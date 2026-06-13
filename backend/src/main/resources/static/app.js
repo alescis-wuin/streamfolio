@@ -1,10 +1,13 @@
 const app = document.querySelector('#app');
 
+const HLS_SCRIPT_URL = 'https://cdn.jsdelivr.net/npm/hls.js@1';
+
 const state = {
   user: null,
   playerCleanup: null,
   sectionsCache: null,
   genresCache: null,
+  hlsLibraryPromise: null,
 };
 
 const icons = {
@@ -346,11 +349,11 @@ async function renderPlayer(videoId) {
       <div class='player-meta'><div><p class='eyebrow'>${escapeHtml(playback.label)}</p><h1 id='player-title'>${escapeHtml(playback.videoTitle)}</h1><p class='muted'>${escapeHtml(playback.title)} · ${labelType(playback.type)} · ${playback.releaseYear} · ${escapeHtml(playback.maturityRating)}</p></div><a class='btn ghost' href='#/title/${escapeHtml(playback.titleSlug)}'>Retour à la fiche</a></div>
       <div class='video-frame'>
         <video id='video-player' controls playsinline preload='metadata'>
-          <source src='${escapeHtml(playback.streamUrl)}' type='video/mp4'>
           <track src='${escapeHtml(playback.subtitlesUrl)}' kind='subtitles' srclang='fr' label='Français' default>
           Votre navigateur ne supporte pas la vidéo HTML5.
         </video>
       </div>
+      <div class='player-mode' id='player-mode' role='status' aria-live='polite'>${playerModeView('Initialisation', initialPlaybackModeText(playback))}</div>
       <div class='player-meta'><p class='muted'>Progression sauvegardée automatiquement.</p><div class='kbd-list' aria-label='Raccourcis clavier'><span><kbd>k</kbd> lecture/pause</span><span><kbd>←</kbd><kbd>→</kbd> ±10 s</span><span><kbd>m</kbd> muet</span><span><kbd>f</kbd> plein écran</span></div></div>
     </section>
   `);
@@ -360,9 +363,19 @@ async function renderPlayer(videoId) {
 function setupPlayer(playback) {
   const video = document.querySelector('#video-player');
   if (!video) return;
+  const status = document.querySelector('#player-mode');
   const startPosition = playback.progress?.positionSeconds || 0;
   let lastSync = 0;
   let disposed = false;
+  let hlsInstance = null;
+
+  configureVideoSource(video, playback, status).then((instance) => {
+    if (disposed) {
+      instance?.destroy?.();
+      return;
+    }
+    hlsInstance = instance;
+  });
 
   video.addEventListener('loadedmetadata', () => {
     if (startPosition > 0 && startPosition < video.duration - 3) video.currentTime = startPosition;
@@ -403,8 +416,93 @@ function setupPlayer(playback) {
   state.playerCleanup = () => {
     syncProgress(true);
     disposed = true;
+    hlsInstance?.destroy?.();
     document.removeEventListener('keydown', onKey);
   };
+}
+
+async function configureVideoSource(video, playback, status) {
+  if (playback.streamingMode === 'HLS_AVAILABLE' && playback.hlsUrl) {
+    const hls = await setupHlsPlayback(video, playback, status);
+    if (hls) return hls;
+  }
+  applyMp4Fallback(video, playback, status, fallbackReason(playback));
+  return null;
+}
+
+async function setupHlsPlayback(video, playback, status) {
+  setPlayerMode(status, 'HLS disponible', 'Chargement du lecteur adaptatif…', 'hls');
+  try {
+    const Hls = await loadHlsLibrary();
+    if (Hls?.isSupported?.()) {
+      const hls = new Hls({ xhrSetup: (xhr) => { xhr.withCredentials = true; } });
+      hls.loadSource(playback.hlsUrl);
+      hls.attachMedia(video);
+      hls.on(Hls.Events.ERROR, (_event, data) => {
+        if (data?.fatal) {
+          hls.destroy();
+          applyMp4Fallback(video, playback, status, 'Erreur HLS détectée. Repli automatique sur MP4.');
+        }
+      });
+      setPlayerMode(status, 'HLS adaptatif', 'Lecture via hls.js. Fallback MP4 disponible.', 'hls');
+      return hls;
+    }
+  } catch {
+    // Si le CDN hls.js est indisponible, on essaie le HLS natif puis MP4.
+  }
+
+  if (video.canPlayType('application/vnd.apple.mpegurl')) {
+    video.src = playback.hlsUrl;
+    setPlayerMode(status, 'HLS natif', 'Lecture HLS native du navigateur. Fallback MP4 disponible.', 'hls');
+    return null;
+  }
+
+  applyMp4Fallback(video, playback, status, 'HLS non supporté ici. Lecture MP4 progressive.');
+  return null;
+}
+
+function applyMp4Fallback(video, playback, status, reason) {
+  video.src = playback.streamUrl;
+  setPlayerMode(status, 'MP4 fallback', reason, 'mp4');
+}
+
+function loadHlsLibrary() {
+  if (window.Hls) return Promise.resolve(window.Hls);
+  if (state.hlsLibraryPromise) return state.hlsLibraryPromise;
+
+  state.hlsLibraryPromise = new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = HLS_SCRIPT_URL;
+    script.async = true;
+    script.dataset.hlsjs = 'true';
+    script.onload = () => resolve(window.Hls);
+    script.onerror = () => reject(new Error('Impossible de charger hls.js.'));
+    document.head.appendChild(script);
+  });
+  return state.hlsLibraryPromise;
+}
+
+function setPlayerMode(target, title, detail, variant) {
+  if (!target) return;
+  target.classList.toggle('is-hls', variant === 'hls');
+  target.classList.toggle('is-mp4', variant === 'mp4');
+  target.innerHTML = playerModeView(title, detail);
+}
+
+function playerModeView(title, detail) {
+  return `<span class='mode-dot' aria-hidden='true'></span><div><strong>${escapeHtml(title)}</strong><span>${escapeHtml(detail)}</span></div>`;
+}
+
+function initialPlaybackModeText(playback) {
+  if (playback.streamingMode === 'HLS_AVAILABLE') return 'Flux HLS détecté. Initialisation du lecteur adaptatif.';
+  if (playback.streamingMode === 'HLS_MISSING') return 'HLS absent pour cette vidéo. Lecture MP4 progressive.';
+  return 'Lecture MP4 progressive.';
+}
+
+function fallbackReason(playback) {
+  if (playback.streamingMode === 'HLS_MISSING') return 'Playlist HLS absente. Lecture MP4 progressive.';
+  if (playback.streamingMode === 'MP4_ONLY') return 'Mode démo classpath. Lecture MP4 progressive.';
+  return 'Lecture MP4 progressive.';
 }
 
 function cleanupPlayer() {
