@@ -1,0 +1,4 @@
+streamfolio:
+  media:
+    storage: local
+    root: ./data/media
