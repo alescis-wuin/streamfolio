@@ -4,7 +4,7 @@ Plateforme de streaming vidéo de démonstration pour portfolio, développée av
 
 ## Objectif
 
-Streamfolio montre la réalisation d'une application complète de type streaming : authentification de démonstration, catalogue films/séries, watchlist, progression de lecture, fiches détail et lecteur vidéo HTML5 avec streaming MP4 progressif.
+Streamfolio montre la réalisation d'une application complète de type streaming : authentification, catalogue films/séries, watchlist, progression de lecture, fiches détail et lecteur vidéo HTML5 avec streaming MP4 progressif.
 
 Le projet privilégie une architecture simple à lancer et à évaluer : un backend Spring Boot, une base H2 pour la démo, une interface responsive sans build frontend obligatoire et des médias de démonstration libres de contenu protégé.
 
@@ -12,7 +12,8 @@ Le projet privilégie une architecture simple à lancer et à évaluer : un back
 
 | Couche | Technologies |
 |---|---|
-| Backend | Java 21, Spring Boot, Spring MVC, Spring Data JPA, Bean Validation |
+| Backend | Java 21, Spring Boot, Spring MVC, Spring Security, Spring Data JPA, Bean Validation |
+| Sécurité | BCrypt, cookie de session HttpOnly, SameSite Strict, expiration configurable |
 | Base de données | H2 en mémoire par défaut, profil persistant disponible |
 | Frontend | HTML, CSS, JavaScript natif, PWA, Service Worker |
 | Vidéo | Lecteur HTML5, MP4 progressif, requêtes HTTP Range, sous-titres WebVTT |
@@ -21,7 +22,10 @@ Le projet privilégie une architecture simple à lancer et à évaluer : un back
 
 ## Fonctionnalités
 
-- Authentification de démonstration avec compte préchargé.
+- Authentification de démonstration avec Spring Security.
+- Mot de passe de démonstration encodé avec BCrypt.
+- Session applicative courte via cookie HttpOnly.
+- Endpoint de logout serveur.
 - Catalogue de films et séries avec genres, recherche et filtres.
 - Accueil avec hero immersif et rails horizontaux.
 - Pages dédiées : Accueil, Films, Séries, Ma liste.
@@ -31,6 +35,7 @@ Le projet privilégie une architecture simple à lancer et à évaluer : un back
 - Lecteur HTML5 avec sous-titres WebVTT.
 - Raccourcis clavier du lecteur : `k`, espace, flèches, `m`, `f`.
 - Streaming MP4 via endpoint Spring compatible HTTP Range.
+- Endpoints vidéo protégés : metadata, stream, sous-titres et progression.
 - PWA responsive utilisable sans dépendance frontend externe.
 - Données, affiches SVG et vidéos de démonstration incluses localement.
 
@@ -123,6 +128,15 @@ cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=persistent
 ```
 
+### Console H2 locale
+
+La console H2 est désactivée par défaut. Pour l'activer explicitement en développement :
+
+```bash
+cd backend
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
 Réinitialisation de l'état local :
 
 ```bash
@@ -138,16 +152,19 @@ Sur Windows :
 ## Vérification
 
 ```bash
-# Tests backend
 cd backend
-mvn test
+mvn clean test
 ```
 
 ```bash
-# Build JAR
-cd backend
-mvn -DskipTests package
-java -jar target/streamfolio-v1-1.0.0.jar
+node --check src/main/resources/static/app.js
+```
+
+Depuis la racine :
+
+```bash
+bash -n scripts/*.sh
+python3 -m py_compile scripts/regenerate-posters.py
 ```
 
 Dans un autre terminal, une fois l'application lancée :
@@ -160,11 +177,14 @@ Le smoke test vérifie notamment :
 
 - `/api/health` ;
 - login de démonstration ;
+- cookie de session ;
 - `/api/me` ;
 - sections du catalogue ;
 - genres ;
 - catalogue filtré ;
-- endpoint vidéo avec header HTTP `Range`.
+- endpoint vidéo protégé avec header HTTP `Range`.
+
+Checklist complète : [`docs/validation-checklist.md`](docs/validation-checklist.md).
 
 ## Structure
 
@@ -175,7 +195,7 @@ backend/src/main/resources/  Configuration, UI, médias et données de démo
 backend/src/test/            Tests backend
 frontend/                    Notes frontend
 scripts/                     Scripts Linux/Windows et smoke test HTTP
-docs/                        Architecture, recherche, roadmap, captures, setup GitHub
+docs/                        Architecture, recherche, roadmap, captures, validation, setup GitHub
 .github/workflows/           CI GitHub Actions
 ```
 
@@ -198,12 +218,11 @@ Cette version est conçue pour un portfolio, pas pour une production réelle.
 
 Limites principales :
 
-- authentification volontairement simplifiée ;
-- sessions en mémoire ;
-- mot de passe de démonstration ;
+- compte utilisateur de démonstration préchargé ;
+- sessions applicatives en mémoire ;
+- cookie Secure désactivé en local HTTP, activable derrière HTTPS ;
 - base H2 par défaut ;
-- pas de Spring Security complet ;
-- pas de rôles utilisateur ;
+- pas de rôles utilisateur avancés ;
 - pas de DRM ;
 - pas de stockage objet S3/MinIO ;
 - pas de transcodage FFmpeg ;
@@ -215,18 +234,13 @@ Limites principales :
 
 ### Court terme
 
-- Ajouter Spring Security.
-- Remplacer le hash de démonstration par BCrypt ou Argon2.
-- Protéger les endpoints de streaming et de sous-titres.
-- Ajouter des tests MockMvc sur les principaux endpoints.
-- Ajouter des tests unitaires sur les services métier.
-- Optimiser les requêtes de catalogue pour éviter les traitements en mémoire et les risques de N+1.
+- Stabiliser la phase 2.5 : tests, smoke test, CI et validation UI.
 - Découper progressivement `app.js` et `styles.css`.
+- Ajouter OpenAPI/Swagger.
+- Ajouter PostgreSQL en profil Docker.
 
 ### Moyen terme
 
-- Ajouter PostgreSQL en profil Docker.
-- Ajouter OpenAPI/Swagger.
 - Ajouter une page admin pour gérer titres, vidéos et genres.
 - Ajouter un pipeline FFmpeg pour générer affiches, thumbnails et variantes vidéo.
 - Ajouter HLS avec qualité adaptative.
