@@ -35,6 +35,12 @@ GET http://localhost:8080/api/videos/1
 GET http://localhost:8080/api/videos/1/stream
 Range: bytes=0-1023
 
+### HLS playlist
+GET http://localhost:8080/api/videos/1/hls/master.m3u8
+
+### HLS segment
+GET http://localhost:8080/api/videos/1/hls/segment_000.ts
+
 ### Subtitles
 GET http://localhost:8080/api/videos/1/subtitles
 
