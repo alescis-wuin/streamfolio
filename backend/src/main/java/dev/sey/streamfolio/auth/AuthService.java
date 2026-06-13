@@ -69,7 +69,7 @@ public class AuthService {
         if (session == null) {
             return Optional.empty();
         }
-        if (session.expiresAt().isBefore(Instant.now(clock))) {
+        if (!session.expiresAt().isAfter(Instant.now(clock))) {
             sessions.remove(token);
             return Optional.empty();
         }
