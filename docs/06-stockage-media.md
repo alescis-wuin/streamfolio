@@ -6,6 +6,8 @@ Phase 3.2.A : l'infrastructure FFmpeg peut générer une sortie HLS locale.
 
 Phase 3.2.B : l'API expose les playlists et segments HLS derrière authentification.
 
+Phase 3.2.C : le lecteur frontend choisit HLS quand disponible et retombe sur MP4 si nécessaire.
+
 Mode par défaut : `classpath`.
 
 Mode local : `local-media`.
@@ -37,6 +39,8 @@ Endpoints HLS protégés :
 
 Le DTO playback expose toujours `streamUrl` pour le fallback MP4. Quand HLS existe, il ajoute `hlsUrl` et `streamingMode=HLS_AVAILABLE`.
 
+Le lecteur frontend utilise hls.js quand il est disponible. Si hls.js ne peut pas être chargé ou si HLS n'est pas supporté par le navigateur, le lecteur utilise automatiquement `streamUrl` en MP4 progressif.
+
 Lancer en mode local :
 
 `cd backend`
@@ -47,4 +51,4 @@ Dans un second terminal :
 
 `./scripts/smoke.sh`
 
-Note : la phase 3.2.B n'intègre pas encore hls.js côté frontend. Le lecteur continuera donc à utiliser le MP4 tant que la phase 3.2.C n'est pas réalisée.
+Après une mise à jour frontend, effectuer un rafraîchissement complet du navigateur si l'ancien Service Worker sert encore l'ancien `app.js`.
