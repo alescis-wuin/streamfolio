@@ -1,0 +1,74 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+
+permissions:
+  contents: read
+
+jobs:
+  quality:
+    name: Build, tests and smoke checks
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Install smoke-test dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y jq
+
+      - name: Shell syntax check
+        run: bash -n scripts/*.sh
+
+      - name: JavaScript syntax check
+        run: node --check backend/src/main/resources/static/app.js
+
+      - name: Python syntax check
+        run: python3 -m py_compile scripts/regenerate-posters.py
+
+      - name: Maven tests
+        working-directory: backend
+        run: mvn -B test
+
+      - name: Build application JAR
+        working-directory: backend
+        run: mvn -B -DskipTests package
+
+      - name: Start application
+        run: |
+          java -jar backend/target/*.jar > app.log 2>&1 &
+          echo $! > app.pid
+          for i in {1..45}; do
+            if curl -fsS http://localhost:8080/api/health > /dev/null; then
+              exit 0
+            fi
+            sleep 2
+          done
+          cat app.log
+          exit 1
+
+      - name: HTTP smoke test
+        run: ./scripts/smoke.sh
+
+      - name: Stop application
+        if: always()
+        run: |
+          if [ -f app.pid ]; then
+            kill "$(cat app.pid)" || true
+          fi
+
+      - name: Docker build
+        run: docker build ./backend

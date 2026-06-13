@@ -1,0 +1,36 @@
+server:
+  port: 8080
+  compression:
+    enabled: true
+
+spring:
+  application:
+    name: streamfolio-v1
+  datasource:
+    # Base volatile pour une V1 de démonstration : évite les conflits de schéma H2/Hibernate
+    # entre deux lancements locaux. Voir README pour l'option persistante.
+    url: jdbc:h2:mem:streamfolio;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+  jpa:
+    hibernate:
+      # create-drop est volontaire pour la démo : schéma propre à chaque démarrage.
+      ddl-auto: create-drop
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  web:
+    resources:
+      cache:
+        # Développement : évite de garder les anciennes miniatures/CSS/JS lors des itérations UI.
+        period: 0
+
+logging:
+  level:
+    dev.sey.streamfolio: INFO

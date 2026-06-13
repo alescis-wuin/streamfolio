@@ -1,0 +1,61 @@
+### Health
+GET http://localhost:8080/api/health
+
+### Login
+POST http://localhost:8080/api/auth/login
+Content-Type: application/json
+
+{
+  "email": "alexis@example.dev",
+  "password": "demo1234"
+}
+
+### Me
+GET http://localhost:8080/api/me
+Authorization: Bearer {{token}}
+
+### Sections
+GET http://localhost:8080/api/sections
+Authorization: Bearer {{token}}
+
+### Genres
+GET http://localhost:8080/api/genres
+Authorization: Bearer {{token}}
+
+### Search
+GET http://localhost:8080/api/catalog?query=botanical&type=SERIES
+Authorization: Bearer {{token}}
+
+### Filter by genre
+GET http://localhost:8080/api/catalog?genre=Technologie
+Authorization: Bearer {{token}}
+
+### Detail
+GET http://localhost:8080/api/catalog/botanical-cities
+Authorization: Bearer {{token}}
+
+### Playback metadata
+GET http://localhost:8080/api/videos/1
+Authorization: Bearer {{token}}
+
+### Stream headers
+GET http://localhost:8080/api/videos/1/stream
+Range: bytes=0-1023
+
+### Progress
+PUT http://localhost:8080/api/videos/1/progress
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "positionSeconds": 7,
+  "durationSeconds": 12
+}
+
+### Watchlist add
+POST http://localhost:8080/api/titles/1/watchlist
+Authorization: Bearer {{token}}
+
+### Watchlist remove
+DELETE http://localhost:8080/api/titles/1/watchlist
+Authorization: Bearer {{token}}

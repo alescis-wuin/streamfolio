@@ -1,0 +1,9 @@
+spring:
+  datasource:
+    # Profil optionnel si une conservation locale de la progression est souhaitée.
+    # Utilisation : mvn spring-boot:run -Dspring-boot.run.profiles=persistent
+    url: jdbc:h2:file:./data/streamfolio;MODE=PostgreSQL;DATABASE_TO_UPPER=false;AUTO_SERVER=TRUE
+  jpa:
+    hibernate:
+      # Recrée le schéma au démarrage pour éviter les conflits de contraintes H2/Hibernate.
+      ddl-auto: create

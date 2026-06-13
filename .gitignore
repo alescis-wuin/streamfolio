@@ -1,0 +1,44 @@
+# Java / Maven
+**/target/
+*.class
+*.jar
+*.war
+*.ear
+
+# Spring Boot / local runtime
+backend/data/
+backend/*.mv.db
+backend/*.trace.db
+*.pid
+*.log
+logs/
+
+# IDE
+.idea/
+.vscode/
+*.iml
+*.ipr
+*.iws
+.project
+.classpath
+.settings/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Node / frontend experiments
+node_modules/
+dist/
+build/
+coverage/
+
+# Environment / local secrets
+.env
+.env.*
+!.env.example
