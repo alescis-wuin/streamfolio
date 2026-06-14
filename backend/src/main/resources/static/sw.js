@@ -1,8 +1,10 @@
-const CACHE_NAME = 'streamfolio-shell-v8';
+const CACHE_NAME = 'streamfolio-shell-v9';
 const SHELL = [
   '/',
   '/index.html',
   '/styles.css',
+  '/ui-overrides.css',
+  '/csrf.js',
   '/app.js',
   '/manifest.webmanifest',
   '/assets/icons/icon.svg',
