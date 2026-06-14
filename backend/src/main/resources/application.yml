@@ -34,6 +34,8 @@ spring:
 streamfolio:
   security:
     session-ttl: PT30M
+    session-cleanup-initial-delay-ms: 300000
+    session-cleanup-interval-ms: 300000
     cookie-name: STREAMFOLIO_SESSION
     cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
     cookie-same-site: Strict

@@ -31,10 +31,10 @@ class H2ConsoleDevProfileSecurityTest {
     }
 
     @Test
-    void h2ConsoleRequestIsNotBlockedBySecurityInDevProfile() throws Exception {
+    void h2ConsoleIsNotBlockedBySecurityInDevProfile() throws Exception {
         MvcResult result = mockMvc.perform(get("/h2-console/"))
             .andReturn();
 
-        assertThat(result.getResponse().getStatus()).isNotIn(401, 403);
+        assertThat(result.getResponse().getStatus()).isNotIn(401, 403, 500);
     }
 }

@@ -3,6 +3,9 @@ package dev.sey.streamfolio.streaming;
 import dev.sey.streamfolio.catalog.CatalogService;
 import dev.sey.streamfolio.common.NotFoundException;
 import dev.sey.streamfolio.domain.CatalogVideo;
+import jakarta.servlet.http.HttpServletRequest;
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.concurrent.TimeUnit;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
@@ -44,9 +47,10 @@ public class StreamingController {
             .body(resource);
     }
 
-    @GetMapping("/{videoId}/hls/{filename:.+}")
-    public ResponseEntity<Resource> hls(@PathVariable Long videoId, @PathVariable String filename) {
+    @GetMapping("/{videoId}/hls/**")
+    public ResponseEntity<Resource> hls(@PathVariable Long videoId, HttpServletRequest request) {
         catalogService.findVideo(videoId);
+        String filename = hlsFilename(videoId, request);
         Resource resource = mediaStorage.hlsSegment(videoId, filename);
         if (!resource.exists() || !resource.isReadable()) {
             throw new NotFoundException("Fichier HLS introuvable: " + filename);
@@ -68,6 +72,17 @@ public class StreamingController {
             .contentType(MediaType.parseMediaType("text/vtt;charset=UTF-8"))
             .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
             .body(resource);
+    }
+
+    private String hlsFilename(Long videoId, HttpServletRequest request) {
+        String prefix = "/api/videos/" + videoId + "/hls/";
+        String uri = request.getRequestURI();
+        int index = uri.indexOf(prefix);
+        if (index < 0) {
+            throw new NotFoundException("Fichier HLS introuvable.");
+        }
+        String raw = uri.substring(index + prefix.length());
+        return URLDecoder.decode(raw, StandardCharsets.UTF_8);
     }
 
     private MediaType hlsMediaType(String filename) {

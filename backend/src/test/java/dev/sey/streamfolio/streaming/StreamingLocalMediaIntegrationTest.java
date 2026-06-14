@@ -79,14 +79,18 @@ class StreamingLocalMediaIntegrationTest {
     }
 
     @Test
-    void authenticatedUserCanReadHlsPlaylistAndSegment() throws Exception {
+    void authenticatedUserCanReadHlsMasterVariantPlaylistAndSegment() throws Exception {
         Cookie session = login();
 
         mockMvc.perform(get("/api/videos/1/hls/master.m3u8").cookie(session))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/vnd.apple.mpegurl")));
 
-        mockMvc.perform(get("/api/videos/1/hls/segment_000.ts").cookie(session))
+        mockMvc.perform(get("/api/videos/1/hls/360p/playlist.m3u8").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/vnd.apple.mpegurl")));
+
+        mockMvc.perform(get("/api/videos/1/hls/360p/segment_000.ts").cookie(session))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("video/mp2t")));
     }
@@ -144,11 +148,12 @@ class StreamingLocalMediaIntegrationTest {
     private static void prepareLocalMedia() throws IOException {
         Files.createDirectories(MEDIA_ROOT.resolve("originals"));
         Files.createDirectories(MEDIA_ROOT.resolve("subtitles"));
-        Files.createDirectories(MEDIA_ROOT.resolve("hls/1"));
+        Files.createDirectories(MEDIA_ROOT.resolve("hls/1/360p"));
         copyClasspathMedia("media/aurora-drift.mp4", MEDIA_ROOT.resolve("originals/aurora-drift.mp4"));
         copyClasspathMedia("media/aurora-drift.vtt", MEDIA_ROOT.resolve("subtitles/aurora-drift.vtt"));
-        Files.writeString(MEDIA_ROOT.resolve("hls/1/master.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:1.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n");
-        Files.writeString(MEDIA_ROOT.resolve("hls/1/segment_000.ts"), "fake segment");
+        Files.writeString(MEDIA_ROOT.resolve("hls/1/master.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360,NAME=\"360p\"\n360p/playlist.m3u8\n");
+        Files.writeString(MEDIA_ROOT.resolve("hls/1/360p/playlist.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:1.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n");
+        Files.writeString(MEDIA_ROOT.resolve("hls/1/360p/segment_000.ts"), "fake segment");
     }
 
     private static void copyClasspathMedia(String source, Path target) throws IOException {

@@ -38,12 +38,36 @@ class MediaStorageServiceTest {
     }
 
     @Test
+    void localModeResolvesNestedHlsVariantFiles() throws IOException {
+        Files.createDirectories(tempDir.resolve("hls/1/720p"));
+        Files.writeString(tempDir.resolve("hls/1/720p/playlist.m3u8"), "#EXTM3U");
+        Files.writeString(tempDir.resolve("hls/1/720p/segment_000.ts"), "fake segment");
+
+        MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
+
+        assertThat(storage.hlsSegment(1L, "720p/playlist.m3u8").exists()).isTrue();
+        assertThat(storage.hlsSegment(1L, "720p/segment_000.ts").exists()).isTrue();
+    }
+
+    @Test
     void rejectsUnsafeFilenames() {
         MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
 
         assertThatThrownBy(() -> storage.video("../secret.mp4"))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("invalide");
+    }
+
+    @Test
+    void rejectsUnsafeHlsPaths() {
+        MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
+
+        assertThatThrownBy(() -> storage.hlsSegment(1L, "../master.m3u8"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("invalide");
+        assertThatThrownBy(() -> storage.hlsSegment(1L, "720p/segment.txt"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("Extension HLS invalide");
     }
 
     @Test

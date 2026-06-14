@@ -9,7 +9,13 @@ SEGMENT_TIME="${STREAMFOLIO_HLS_SEGMENT_TIME:-4}"
 
 SOURCE="$MEDIA_ROOT/originals/$FILENAME"
 OUTPUT_DIR="$MEDIA_ROOT/hls/$VIDEO_ID"
-PLAYLIST="$OUTPUT_DIR/master.m3u8"
+MASTER_PLAYLIST="$OUTPUT_DIR/master.m3u8"
+
+PROFILES=(
+  "360p:640:360:800k:1000000"
+  "720p:1280:720:2800k:3200000"
+  "1080p:1920:1080:5000k:5600000"
+)
 
 if [ ! -f "$SOURCE" ]; then
   bash scripts/prepare-local-media.sh "$MEDIA_ROOT"
@@ -21,26 +27,38 @@ if [ ! -f "$SOURCE" ]; then
 fi
 
 mkdir -p "$OUTPUT_DIR"
+printf '#EXTM3U\n#EXT-X-VERSION:3\n' > "$MASTER_PLAYLIST"
 
-"$FFMPEG" -y \
-  -i "$SOURCE" \
-  -map 0:v:0 \
-  -map '0:a:0?' \
-  -c:v libx264 \
-  -preset veryfast \
-  -crf 23 \
-  -pix_fmt yuv420p \
-  -flags +cgop \
-  -g "$((SEGMENT_TIME * 24))" \
-  -sc_threshold 0 \
-  -c:a aac \
-  -b:a 128k \
-  -ac 2 \
-  -f hls \
-  -hls_time "$SEGMENT_TIME" \
-  -hls_list_size 0 \
-  -hls_playlist_type vod \
-  -hls_segment_filename "$OUTPUT_DIR/segment_%03d.ts" \
-  "$PLAYLIST"
+for PROFILE in "${PROFILES[@]}"; do
+  IFS=':' read -r NAME WIDTH HEIGHT VIDEO_BITRATE BANDWIDTH <<< "$PROFILE"
+  VARIANT_DIR="$OUTPUT_DIR/$NAME"
+  VARIANT_PLAYLIST="$VARIANT_DIR/playlist.m3u8"
+  mkdir -p "$VARIANT_DIR"
 
-printf 'HLS playlist generated: %s\n' "$PLAYLIST"
+  "$FFMPEG" -y \
+    -i "$SOURCE" \
+    -map 0:v:0 \
+    -map '0:a:0?' \
+    -vf "scale=w=$WIDTH:h=$HEIGHT:force_original_aspect_ratio=decrease,pad=w=$WIDTH:h=$HEIGHT:x=(ow-iw)/2:y=(oh-ih)/2:color=black" \
+    -c:v libx264 \
+    -preset veryfast \
+    -b:v "$VIDEO_BITRATE" \
+    -pix_fmt yuv420p \
+    -flags +cgop \
+    -g "$((SEGMENT_TIME * 24))" \
+    -sc_threshold 0 \
+    -c:a aac \
+    -b:a 128k \
+    -ac 2 \
+    -f hls \
+    -hls_time "$SEGMENT_TIME" \
+    -hls_list_size 0 \
+    -hls_playlist_type vod \
+    -hls_segment_filename "$VARIANT_DIR/segment_%03d.ts" \
+    "$VARIANT_PLAYLIST"
+
+  printf '#EXT-X-STREAM-INF:BANDWIDTH=%s,RESOLUTION=%sx%s,NAME="%s"\n%s/playlist.m3u8\n' \
+    "$BANDWIDTH" "$WIDTH" "$HEIGHT" "$NAME" "$NAME" >> "$MASTER_PLAYLIST"
+done
+
+printf 'HLS master playlist generated: %s\n' "$MASTER_PLAYLIST"
