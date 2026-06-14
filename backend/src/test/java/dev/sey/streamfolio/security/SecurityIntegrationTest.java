@@ -2,6 +2,7 @@ package dev.sey.streamfolio.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -41,8 +42,28 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void csrfEndpointProvidesTokenMetadata() throws Exception {
+        mockMvc.perform(get("/api/csrf"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.token").isNotEmpty())
+            .andExpect(jsonPath("$.headerName").value("X-XSRF-TOKEN"))
+            .andExpect(jsonPath("$.parameterName").value("_csrf"))
+            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("XSRF-TOKEN")));
+    }
+
+    @Test
+    void loginRequiresCsrfToken() throws Exception {
+        mockMvc.perform(post("/api/auth/login")
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"email\":\"alexis@example.dev\",\"password\":\"demo1234\"}"))
+            .andExpect(status().isForbidden())
+            .andExpect(jsonPath("$.message").value("Action refusée ou jeton CSRF invalide."));
+    }
+
+    @Test
     void loginSetsHttpOnlyCookieAndDoesNotExposeTokenInJson() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alexis@example.dev\",\"password\":\"demo1234\"}"))
             .andExpect(status().isOk())
@@ -71,9 +92,27 @@ class SecurityIntegrationTest {
         mockMvc.perform(get("/api/videos/1/hls/segment_000.ts"))
             .andExpect(status().isUnauthorized());
         mockMvc.perform(put("/api/videos/1/progress")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"positionSeconds\":1,\"durationSeconds\":12}"))
             .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void authenticatedMutatingRequestsRequireCsrfToken() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(put("/api/videos/1/progress")
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"positionSeconds\":1,\"durationSeconds\":12}"))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/titles/1/watchlist").cookie(session))
+            .andExpect(status().isForbidden());
+
+        mockMvc.perform(post("/api/auth/logout").cookie(session))
+            .andExpect(status().isForbidden());
     }
 
     @Test
@@ -93,10 +132,16 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void h2ConsoleIsNotPublicOutsideDevProfile() throws Exception {
+        mockMvc.perform(get("/h2-console/"))
+            .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     void logoutInvalidatesServerSession() throws Exception {
         Cookie session = login();
 
-        mockMvc.perform(post("/api/auth/logout").cookie(session))
+        mockMvc.perform(post("/api/auth/logout").with(csrf()).cookie(session))
             .andExpect(status().isNoContent())
             .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
 
@@ -106,6 +151,7 @@ class SecurityIntegrationTest {
 
     private Cookie login() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alexis@example.dev\",\"password\":\"demo1234\"}"))
             .andExpect(status().isOk())
