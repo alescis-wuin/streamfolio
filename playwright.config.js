@@ -2,12 +2,13 @@ const { defineConfig, devices } = require('@playwright/test');
 
 const baseURL = process.env.BASE_URL || 'http://127.0.0.1:8080';
 const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === 'true';
+const reuseWebServer = process.env.PLAYWRIGHT_REUSE_SERVER === 'true';
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
-  timeout: 45_000,
+  timeout: 45000,
   expect: {
-    timeout: 10_000,
+    timeout: 10000,
   },
   fullyParallel: false,
   workers: process.env.CI ? 1 : undefined,
@@ -30,8 +31,8 @@ module.exports = defineConfig({
   webServer: skipWebServer ? undefined : {
     command: 'mvn -q -f backend/pom.xml spring-boot:run',
     url: `${baseURL}/api/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    reuseExistingServer: reuseWebServer,
+    timeout: 120000,
     stdout: 'pipe',
     stderr: 'pipe',
   },

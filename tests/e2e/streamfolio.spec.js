@@ -21,7 +21,7 @@ async function openTitleDetail(page, slug, title) {
 
 async function apiLogin(request) {
   const csrfResponse = await request.get('/api/csrf');
-  expect(csrfResponse.ok()).toBeTruthy();
+  expect(csrfResponse.status()).toBe(200);
   const csrf = await csrfResponse.json();
 
   const loginResponse = await request.post('/api/auth/login', {
@@ -30,7 +30,7 @@ async function apiLogin(request) {
     },
     data: credentials,
   });
-  expect(loginResponse.ok()).toBeTruthy();
+  expect(loginResponse.status()).toBe(200);
   return csrf;
 }
 
@@ -45,7 +45,7 @@ test.describe('Streamfolio e2e', () => {
 
     await openTitleDetail(page, 'botanical-cities', 'Botanical Cities');
 
-    await page.getByRole('button', { name: /Ma liste/ }).first().click();
+    await page.locator('.detail-page').getByRole('button', { name: /Ma liste/ }).click();
     await page.getByRole('link', { name: 'Ma liste' }).first().click();
     await expect(page.locator('#main-content')).toContainText('Botanical Cities');
 
