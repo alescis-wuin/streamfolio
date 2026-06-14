@@ -85,7 +85,7 @@ public class CatalogService {
         Specification<CatalogTitle> spec = CatalogTitleSpecifications.filtered(query, requestedType, genre);
         Pageable pageable = PageRequest.of(safePage(page), safeSize(size), DEFAULT_SORT);
         UserCatalogContext context = contextFor(user);
-        Page<TitleCardDto> result = titles.findAll(spec, pageable).map(title -> toCard(title, context));
+        Page<TitleCardDto> result = titles.findPageWithGraph(spec, pageable).map(title -> toCard(title, context));
         return CatalogPageResponse.from(result);
     }
 
