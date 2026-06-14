@@ -17,6 +17,12 @@ import org.springframework.stereotype.Service;
 
 @Service
 public class TranscodingService {
+    private static final List<Variant> VARIANTS = List.of(
+        new Variant("360p", 640, 360, "800k", 1_000_000),
+        new Variant("720p", 1280, 720, "2800k", 3_200_000),
+        new Variant("1080p", 1920, 1080, "5000k", 5_600_000)
+    );
+
     private final CatalogService catalogService;
     private final MediaStorageService mediaStorage;
     private final FfmpegService ffmpeg;
@@ -53,58 +59,89 @@ public class TranscodingService {
         Path outputDirectory = mediaStorage.hlsDirectory(videoId);
         Path playlist = mediaStorage.hlsMasterPlaylist(videoId);
         if (Files.isRegularFile(playlist) && !force) {
-            return new HlsTranscodeResult(videoId, false, source, outputDirectory, playlist, "Playlist HLS déjà présente.");
+            return new HlsTranscodeResult(videoId, false, source, outputDirectory, playlist, "Playlist HLS deja presente.");
         }
 
-        try {
-            Files.createDirectories(outputDirectory);
-            if (force) {
-                cleanDirectory(outputDirectory);
-                Files.createDirectories(outputDirectory);
-            }
-        } catch (IOException exception) {
-            throw new BadRequestException("Impossible de préparer le dossier HLS: " + exception.getMessage());
+        prepareOutputDirectory(outputDirectory);
+        for (Variant variant : VARIANTS) {
+            Path variantPlaylist = outputDirectory.resolve(variant.name()).resolve("playlist.m3u8");
+            prepareVariantDirectory(variantPlaylist.getParent());
+            ffmpeg.runOrThrow(command(source, variant, variantPlaylist), transcodeTimeout);
+            validatePlaylist(variantPlaylist, false);
         }
-
-        List<String> command = command(source, outputDirectory, playlist);
-        ffmpeg.runOrThrow(command, transcodeTimeout);
-        validatePlaylist(playlist);
-        return new HlsTranscodeResult(videoId, true, source, outputDirectory, playlist, "Playlist HLS générée.");
+        writeMasterPlaylist(playlist);
+        validatePlaylist(playlist, true);
+        return new HlsTranscodeResult(videoId, true, source, outputDirectory, playlist, "Playlist HLS multi-bitrate generee.");
     }
 
-    private List<String> command(Path source, Path outputDirectory, Path playlist) {
+    private void prepareOutputDirectory(Path outputDirectory) {
+        try {
+            Files.createDirectories(outputDirectory);
+            cleanDirectory(outputDirectory);
+            Files.createDirectories(outputDirectory);
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de preparer le dossier HLS: " + exception.getMessage());
+        }
+    }
+
+    private void prepareVariantDirectory(Path outputDirectory) {
+        try {
+            Files.createDirectories(outputDirectory);
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de preparer la variante HLS: " + exception.getMessage());
+        }
+    }
+
+    private List<String> command(Path source, Variant variant, Path playlist) {
+        Path outputDirectory = playlist.getParent();
         return List.of(
-            ffmpeg.binary(),
-            "-y",
-            "-i", source.toString(),
-            "-map", "0:v:0",
-            "-map", "0:a:0?",
-            "-c:v", "libx264",
-            "-preset", "veryfast",
-            "-crf", "23",
-            "-pix_fmt", "yuv420p",
-            "-flags", "+cgop",
-            "-g", String.valueOf(hlsSegmentTime * 24),
-            "-sc_threshold", "0",
-            "-c:a", "aac",
-            "-b:a", "128k",
-            "-ac", "2",
-            "-f", "hls",
-            "-hls_time", String.valueOf(hlsSegmentTime),
-            "-hls_list_size", "0",
-            "-hls_playlist_type", "vod",
+            ffmpeg.binary(), "-y", "-i", source.toString(),
+            "-map", "0:v:0", "-map", "0:a:0?",
+            "-vf", scaleFilter(variant),
+            "-c:v", "libx264", "-preset", "veryfast", "-b:v", variant.videoBitrate(),
+            "-pix_fmt", "yuv420p", "-flags", "+cgop", "-g", String.valueOf(hlsSegmentTime * 24), "-sc_threshold", "0",
+            "-c:a", "aac", "-b:a", "128k", "-ac", "2",
+            "-f", "hls", "-hls_time", String.valueOf(hlsSegmentTime), "-hls_list_size", "0", "-hls_playlist_type", "vod",
             "-hls_segment_filename", outputDirectory.resolve("segment_%03d.ts").toString(),
             playlist.toString()
         );
     }
 
-    private void validatePlaylist(Path playlist) {
+    private String scaleFilter(Variant variant) {
+        return "scale=w=" + variant.width() + ":h=" + variant.height()
+            + ":force_original_aspect_ratio=decrease,pad=w=" + variant.width()
+            + ":h=" + variant.height() + ":x=(ow-iw)/2:y=(oh-ih)/2:color=black";
+    }
+
+    private void writeMasterPlaylist(Path playlist) {
+        StringBuilder content = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n");
+        for (Variant variant : VARIANTS) {
+            content.append("#EXT-X-STREAM-INF:BANDWIDTH=")
+                .append(variant.bandwidth())
+                .append(",RESOLUTION=")
+                .append(variant.width())
+                .append('x')
+                .append(variant.height())
+                .append(",NAME=\"")
+                .append(variant.name())
+                .append("\"\n")
+                .append(variant.name())
+                .append("/playlist.m3u8\n");
+        }
+        try {
+            Files.writeString(playlist, content.toString());
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible d'ecrire la playlist HLS master: " + exception.getMessage());
+        }
+    }
+
+    private void validatePlaylist(Path playlist, boolean master) {
         try {
             if (!Files.isRegularFile(playlist) || !Files.isReadable(playlist)) {
-                throw new BadRequestException("Playlist HLS non générée.");
+                throw new BadRequestException("Playlist HLS non generee.");
             }
             String content = Files.readString(playlist);
-            if (!content.contains("#EXTM3U")) {
+            if (!content.contains("#EXTM3U") || (master && !content.contains("#EXT-X-STREAM-INF"))) {
                 throw new BadRequestException("Playlist HLS invalide.");
             }
         } catch (IOException exception) {
@@ -123,5 +160,8 @@ public class TranscodingService {
                 }
             }
         }
+    }
+
+    private record Variant(String name, int width, int height, String videoBitrate, int bandwidth) {
     }
 }
