@@ -5,6 +5,7 @@ import dev.sey.streamfolio.catalog.dto.PlaybackDto;
 import dev.sey.streamfolio.catalog.dto.ProgressDto;
 import dev.sey.streamfolio.catalog.dto.ProgressUpdateRequest;
 import dev.sey.streamfolio.catalog.dto.SectionsResponse;
+import dev.sey.streamfolio.catalog.dto.TitleCardDto;
 import dev.sey.streamfolio.catalog.dto.TitleDetailDto;
 import dev.sey.streamfolio.domain.UserAccount;
 import jakarta.validation.Valid;
@@ -69,14 +70,14 @@ public class CatalogController {
     }
 
     @PostMapping("/titles/{titleId}/watchlist")
-    public TitleDetailDto addToWatchlist(@PathVariable Long titleId,
-                                         @RequestAttribute(value = "authUser", required = false) UserAccount user) {
+    public TitleCardDto addToWatchlist(@PathVariable Long titleId,
+                                       @RequestAttribute(value = "authUser", required = false) UserAccount user) {
         return catalogService.addToWatchlist(titleId, user);
     }
 
     @DeleteMapping("/titles/{titleId}/watchlist")
-    public TitleDetailDto removeFromWatchlist(@PathVariable Long titleId,
-                                              @RequestAttribute(value = "authUser", required = false) UserAccount user) {
+    public TitleCardDto removeFromWatchlist(@PathVariable Long titleId,
+                                            @RequestAttribute(value = "authUser", required = false) UserAccount user) {
         return catalogService.removeFromWatchlist(titleId, user);
     }
 }
