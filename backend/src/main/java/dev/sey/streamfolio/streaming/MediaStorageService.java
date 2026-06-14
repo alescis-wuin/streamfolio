@@ -122,12 +122,12 @@ public class MediaStorageService {
             throw new BadRequestException("Nom de fichier HLS manquant.");
         }
         String value = filename.trim();
-        if (value.startsWith("/") || value.startsWith("\\") || value.contains("\\")) {
+        if (value.startsWith("/") || value.startsWith("\\") || value.contains("\\") || value.contains("..")) {
             throw new BadRequestException("Chemin HLS invalide.");
         }
         try {
             Path path = Path.of(value).normalize();
-            if (path.isAbsolute() || path.startsWith("..")) {
+            if (path.isAbsolute() || path.startsWith("..") || path.getFileName() == null) {
                 throw new BadRequestException("Chemin HLS invalide.");
             }
             for (Path part : path) {
