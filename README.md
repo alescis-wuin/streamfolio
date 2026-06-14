@@ -24,6 +24,62 @@
 > [!NOTE]
 > Le GIF ci-dessus est une démo longue stockée via Git LFS. Pour un README public, une version plus courte et plus légère pourra être ajoutée dans `docs/screenshots/demo.gif`.
 
+### Visuels existants du catalogue
+
+<table>
+  <tr>
+    <td width="25%">
+      <strong>Aurora Drift</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/aurora-drift.svg" alt="Affiche Aurora Drift" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Botanical Cities</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/botanical-cities.svg" alt="Affiche Botanical Cities" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Silent Protocol</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/silent-protocol.svg" alt="Affiche Silent Protocol" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Kitchen Orbit</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/kitchen-orbit.svg" alt="Affiche Kitchen Orbit" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="25%">
+      <strong>Glass Archive</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/glass-archive.svg" alt="Affiche Glass Archive" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Neon Orchard</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/neon-orchard.svg" alt="Affiche Neon Orchard" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Signal Garden</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/signal-garden.svg" alt="Affiche Signal Garden" width="100%">
+    </td>
+    <td width="25%">
+      <strong>Pixel Greenhouse</strong><br>
+      <img src="backend/src/main/resources/static/assets/posters-clean/pixel-greenhouse.svg" alt="Affiche Pixel Greenhouse" width="100%">
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Captures d'écran prévues</strong></summary>
+
+Les captures applicatives suivantes compléteront le README lorsque les fichiers seront ajoutés dans `docs/screenshots/` :
+
+- [ ] `docs/screenshots/home.png` — accueil après connexion ;
+- [ ] `docs/screenshots/detail.png` — fiche détail ;
+- [ ] `docs/screenshots/player.png` — lecteur vidéo ;
+- [ ] `docs/screenshots/mobile.png` — vue responsive mobile ;
+- [ ] `docs/screenshots/demo.gif` — GIF court optimisé pour README public.
+
+Consignes détaillées : [`docs/screenshots/README.md`](docs/screenshots/README.md).
+
+</details>
+
 ## Objectif
 
 Streamfolio démontre la réalisation d'une application complète de type streaming : authentification, catalogue films/séries, watchlist, progression de lecture, fiches détail, lecteur vidéo HTML5, streaming MP4 progressif et socle HLS local.
@@ -193,7 +249,7 @@ mvn spring-boot:run -Dspring-boot.run.profiles=local-media
 
 Le lecteur choisit HLS quand `master.m3u8` existe, sinon il retombe automatiquement sur le MP4 progressif.
 
-## Médias, captures et Git LFS
+## Médias et Git LFS
 
 Les médias lourds sont suivis avec Git LFS via `.gitattributes`.
 
@@ -203,18 +259,6 @@ Les médias lourds sont suivis avec Git LFS via `.gitattributes`.
 | `docs/record/*.mp4`, `*.mkv`, `*.gif`, `*.webm` | Suivi LFS |
 | `docs/screenshots/*.png`, `*.gif`, `*.mp4`, `*.webm` | Suivi LFS |
 | `backend/data/media/**` | Stockage local généré, non versionné |
-
-### Captures statiques à ajouter
-
-Les fichiers suivants sont prévus pour le README et le portfolio :
-
-- [ ] `docs/screenshots/home.png` — accueil après connexion ;
-- [ ] `docs/screenshots/detail.png` — fiche détail ;
-- [ ] `docs/screenshots/player.png` — lecteur vidéo ;
-- [ ] `docs/screenshots/mobile.png` — vue responsive mobile ;
-- [ ] `docs/screenshots/demo.gif` — GIF court optimisé pour README public.
-
-Consignes détaillées : [`docs/screenshots/README.md`](docs/screenshots/README.md).
 
 ## Qualité technique
 
