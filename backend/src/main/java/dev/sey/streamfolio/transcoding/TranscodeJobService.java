@@ -4,12 +4,15 @@ import dev.sey.streamfolio.catalog.CatalogService;
 import dev.sey.streamfolio.common.NotFoundException;
 import dev.sey.streamfolio.domain.CatalogVideo;
 import dev.sey.streamfolio.domain.MediaAsset;
+import dev.sey.streamfolio.domain.MediaAssetStatus;
 import dev.sey.streamfolio.domain.TranscodeJob;
 import dev.sey.streamfolio.repository.MediaAssetRepository;
 import dev.sey.streamfolio.repository.TranscodeJobRepository;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 @Service
 public class TranscodeJobService {
@@ -32,13 +35,13 @@ public class TranscodeJobService {
     public TranscodeJobDto submit(Long videoId, boolean force) {
         CatalogVideo video = catalogService.findVideo(videoId);
         MediaAsset asset = assets.findByVideo(video).orElseGet(() -> assets.save(new MediaAsset(video)));
-        if (!force && asset.getStatus() == dev.sey.streamfolio.domain.MediaAssetStatus.READY) {
+        if (!force && asset.getStatus() == MediaAssetStatus.READY) {
             TranscodeJob job = jobs.save(new TranscodeJob(video, false));
             job.markDone(asset.getHlsMasterPath(), "Asset media deja pret.");
             return TranscodeJobDto.from(jobs.save(job));
         }
         TranscodeJob job = jobs.save(new TranscodeJob(video, force));
-        worker.run(job.getId());
+        runAfterCommit(job.getId());
         return TranscodeJobDto.from(job);
     }
 
@@ -60,5 +63,14 @@ public class TranscodeJobService {
         return assets.findAll().stream()
             .map(MediaAssetDto::from)
             .toList();
+    }
+
+    private void runAfterCommit(Long jobId) {
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                worker.run(jobId);
+            }
+        });
     }
 }
