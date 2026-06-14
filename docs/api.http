@@ -1,9 +1,15 @@
 ### Health
 GET http://localhost:8080/api/health
 
+### CSRF token
+GET http://localhost:8080/api/csrf
+
+> Les requêtes mutantes doivent envoyer le header retourné par `/api/csrf`, par défaut `X-XSRF-TOKEN`.
+
 ### Login
 POST http://localhost:8080/api/auth/login
 Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
 {
   "email": "alexis@example.dev",
@@ -19,11 +25,11 @@ GET http://localhost:8080/api/sections
 ### Genres
 GET http://localhost:8080/api/genres
 
-### Search
-GET http://localhost:8080/api/catalog?query=botanical&type=SERIES
+### Search paginated
+GET http://localhost:8080/api/catalog?query=botanical&type=SERIES&page=0&size=12
 
-### Filter by genre
-GET http://localhost:8080/api/catalog?genre=Technologie
+### Filter by genre paginated
+GET http://localhost:8080/api/catalog?genre=Technologie&page=0&size=12
 
 ### Detail
 GET http://localhost:8080/api/catalog/botanical-cities
@@ -47,6 +53,7 @@ GET http://localhost:8080/api/videos/1/subtitles
 ### Progress
 PUT http://localhost:8080/api/videos/1/progress
 Content-Type: application/json
+X-XSRF-TOKEN: {{csrfToken}}
 
 {
   "positionSeconds": 7,
@@ -55,9 +62,12 @@ Content-Type: application/json
 
 ### Watchlist add
 POST http://localhost:8080/api/titles/1/watchlist
+X-XSRF-TOKEN: {{csrfToken}}
 
 ### Watchlist remove
 DELETE http://localhost:8080/api/titles/1/watchlist
+X-XSRF-TOKEN: {{csrfToken}}
 
 ### Logout
 POST http://localhost:8080/api/auth/logout
+X-XSRF-TOKEN: {{csrfToken}}
