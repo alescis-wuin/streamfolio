@@ -12,15 +12,15 @@ Cette commande automatise la validation complète du projet :
 
 - contrôle des fichiers générés suivis par Git ;
 - contrôle syntaxique des scripts shell ;
-- contrôle syntaxique JavaScript ;
+- contrôle syntaxique JavaScript, dont `csrf.js`, `playwright.config.js` et les tests `tests/e2e` ;
 - compilation du script Python ;
 - `mvn clean test` ;
 - packaging Maven ;
 - démarrage en mode `classpath` ;
-- smoke test HTTP en mode `classpath` ;
+- smoke test HTTP en mode `classpath`, avec récupération du jeton CSRF ;
 - préparation du stockage média local ;
 - démarrage en mode `local-media` ;
-- smoke test HTTP en mode `local-media`.
+- smoke test HTTP en mode `local-media`, avec récupération du jeton CSRF.
 
 Les logs applicatifs sont produits dans :
 
@@ -43,9 +43,53 @@ __pycache__/
 *.pyc
 ```
 
+## Validation CSRF
+
+L'application expose un endpoint public de récupération du jeton :
+
+```bash
+curl -c cookies.txt -b cookies.txt http://localhost:8080/api/csrf
+```
+
+Les requêtes mutantes doivent ensuite fournir le header retourné par cet endpoint, par défaut :
+
+```text
+X-XSRF-TOKEN: <token>
+```
+
+Sont notamment protégés :
+
+- `POST /api/auth/login` ;
+- `POST /api/auth/logout` ;
+- `PUT /api/videos/{videoId}/progress` ;
+- `POST /api/titles/{titleId}/watchlist` ;
+- `DELETE /api/titles/{titleId}/watchlist`.
+
+## Validation E2E Playwright
+
+Installation puis exécution :
+
+```bash
+npm install
+npx playwright install chromium
+npm run test:e2e
+```
+
+Ou via le script dédié :
+
+```bash
+bash scripts/e2e.sh
+```
+
+Le rapport HTML est généré dans :
+
+```text
+build/playwright-report/
+```
+
 ## Validation CI
 
-Le workflow `.github/workflows/ci.yml` lance `bash scripts/validate.sh`, publie les logs de validation en artifact GitHub Actions, puis construit l'image Docker.
+Le workflow `.github/workflows/ci.yml` lance `bash scripts/validate.sh`, publie les logs de validation en artifact GitHub Actions, exécute les tests Playwright, publie le rapport Playwright, puis construit l'image Docker.
 
 Déclenchements :
 
@@ -84,5 +128,6 @@ Dans un second terminal :
 
 - validation locale complète verte ;
 - CI verte ;
+- tests Playwright verts ;
 - parcours UI manuel sans régression bloquante ;
 - captures portfolio ajoutées dans `docs/screenshots/`.
