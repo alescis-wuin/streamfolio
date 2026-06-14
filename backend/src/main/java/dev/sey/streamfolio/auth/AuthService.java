@@ -16,6 +16,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -87,6 +88,24 @@ public class AuthService {
             throw new UnauthorizedException("Connexion requise.");
         }
         return user;
+    }
+
+    @Scheduled(
+        initialDelayString = "${streamfolio.security.session-cleanup-initial-delay-ms:300000}",
+        fixedDelayString = "${streamfolio.security.session-cleanup-interval-ms:300000}"
+    )
+    public void cleanupExpiredSessions() {
+        purgeExpiredSessions();
+    }
+
+    int purgeExpiredSessions() {
+        return purgeExpiredSessions(Instant.now(clock));
+    }
+
+    int purgeExpiredSessions(Instant now) {
+        int before = sessions.size();
+        sessions.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
+        return before - sessions.size();
     }
 
     public static String normalizeEmail(String email) {
