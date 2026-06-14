@@ -1,0 +1,11 @@
+streamfolio:
+  object-storage:
+    enabled: true
+    endpoint: ${STREAMFOLIO_MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    bucket: ${STREAMFOLIO_MINIO_BUCKET:streamfolio-media}
+    access-key: ${STREAMFOLIO_MINIO_ACCESS_KEY:streamfolio}
+    secret-key: ${STREAMFOLIO_MINIO_SECRET_KEY:change-me}
+  media:
+    storage: local
+    root: ${STREAMFOLIO_MEDIA_ROOT:./data/media}
