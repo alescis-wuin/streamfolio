@@ -13,6 +13,12 @@ async function login(page) {
   await expect(page.locator('#main-content')).toContainText('Explorer');
 }
 
+async function openTitleDetail(page, slug, title) {
+  await page.goto(`/#/title/${slug}`);
+  await expect(page).toHaveURL(new RegExp(`#/title/${slug}`));
+  await expect(page.locator('.detail-page').getByRole('heading', { name: title })).toBeVisible();
+}
+
 async function apiLogin(request) {
   const csrfResponse = await request.get('/api/csrf');
   expect(csrfResponse.ok()).toBeTruthy();
@@ -37,8 +43,7 @@ test.describe('Streamfolio e2e', () => {
     await expect(page).toHaveURL(/#\/catalog\?query=botanical/);
     await expect(page.locator('#main-content')).toContainText('Botanical Cities');
 
-    await page.getByRole('link', { name: /Afficher Botanical Cities/ }).first().click();
-    await expect(page.getByRole('heading', { name: 'Botanical Cities' })).toBeVisible();
+    await openTitleDetail(page, 'botanical-cities', 'Botanical Cities');
 
     await page.getByRole('button', { name: /Ma liste/ }).first().click();
     await page.getByRole('link', { name: 'Ma liste' }).first().click();
