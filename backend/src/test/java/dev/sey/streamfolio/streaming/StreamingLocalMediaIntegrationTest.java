@@ -56,13 +56,14 @@ class StreamingLocalMediaIntegrationTest {
     }
 
     @Test
-    void playbackExposesHlsWhenPlaylistExists() throws Exception {
+    void playbackExposesHlsAndThumbnailsWhenFilesExist() throws Exception {
         Cookie session = login();
 
         mockMvc.perform(get("/api/videos/1").cookie(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.streamUrl").value("/api/videos/1/stream"))
             .andExpect(jsonPath("$.hlsUrl").value("/api/videos/1/hls/master.m3u8"))
+            .andExpect(jsonPath("$.thumbnailManifestUrl").value("/api/videos/1/thumbnails/manifest.json"))
             .andExpect(jsonPath("$.streamingMode").value("HLS_AVAILABLE"));
     }
 
@@ -93,6 +94,19 @@ class StreamingLocalMediaIntegrationTest {
         mockMvc.perform(get("/api/videos/1/hls/360p/segment_000.ts").cookie(session))
             .andExpect(status().isOk())
             .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("video/mp2t")));
+    }
+
+    @Test
+    void authenticatedUserCanReadThumbnailManifestAndImage() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(get("/api/videos/1/thumbnails/manifest.json").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/json")));
+
+        mockMvc.perform(get("/api/videos/1/thumbnails/thumb_000.jpg").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("image/jpeg")));
     }
 
     @Test
@@ -149,11 +163,14 @@ class StreamingLocalMediaIntegrationTest {
         Files.createDirectories(MEDIA_ROOT.resolve("originals"));
         Files.createDirectories(MEDIA_ROOT.resolve("subtitles"));
         Files.createDirectories(MEDIA_ROOT.resolve("hls/1/360p"));
+        Files.createDirectories(MEDIA_ROOT.resolve("thumbnails/1"));
         copyClasspathMedia("media/aurora-drift.mp4", MEDIA_ROOT.resolve("originals/aurora-drift.mp4"));
         copyClasspathMedia("media/aurora-drift.vtt", MEDIA_ROOT.resolve("subtitles/aurora-drift.vtt"));
         Files.writeString(MEDIA_ROOT.resolve("hls/1/master.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-STREAM-INF:BANDWIDTH=1000000,RESOLUTION=640x360,NAME=\"360p\"\n360p/playlist.m3u8\n");
         Files.writeString(MEDIA_ROOT.resolve("hls/1/360p/playlist.m3u8"), "#EXTM3U\n#EXT-X-VERSION:3\n#EXTINF:1.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n");
         Files.writeString(MEDIA_ROOT.resolve("hls/1/360p/segment_000.ts"), "fake segment");
+        Files.writeString(MEDIA_ROOT.resolve("thumbnails/1/manifest.json"), "{\"items\":[{\"timeSeconds\":0,\"url\":\"/api/videos/1/thumbnails/thumb_000.jpg\"}]}");
+        Files.writeString(MEDIA_ROOT.resolve("thumbnails/1/thumb_000.jpg"), "fake jpg");
     }
 
     private static void copyClasspathMedia(String source, Path target) throws IOException {
