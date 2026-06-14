@@ -1,6 +1,7 @@
 package dev.sey.streamfolio.catalog;
 
 import dev.sey.streamfolio.auth.AuthService;
+import dev.sey.streamfolio.catalog.dto.CatalogPageResponse;
 import dev.sey.streamfolio.catalog.dto.PlaybackDto;
 import dev.sey.streamfolio.catalog.dto.ProgressDto;
 import dev.sey.streamfolio.catalog.dto.ProgressUpdateRequest;
@@ -34,11 +35,21 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class CatalogService {
+    private static final int DEFAULT_PAGE_SIZE = 24;
+    private static final int MAX_PAGE_SIZE = 50;
+    private static final Sort DEFAULT_SORT = Sort.by(Sort.Direction.ASC, "displayPriority")
+        .and(Sort.by(Sort.Direction.ASC, "title"));
+
     private final CatalogTitleRepository titles;
     private final CatalogVideoRepository videos;
     private final UserProgressRepository progressRepository;
@@ -69,16 +80,21 @@ public class CatalogService {
     }
 
     @Transactional(readOnly = true)
+    public CatalogPageResponse catalogPage(String query, String type, String genre, Integer page, Integer size, UserAccount user) {
+        ContentType requestedType = parseType(type);
+        Specification<CatalogTitle> spec = CatalogTitleSpecifications.filtered(query, requestedType, genre);
+        Pageable pageable = PageRequest.of(safePage(page), safeSize(size), DEFAULT_SORT);
+        UserCatalogContext context = contextFor(user);
+        Page<TitleCardDto> result = titles.findAll(spec, pageable).map(title -> toCard(title, context));
+        return CatalogPageResponse.from(result);
+    }
+
+    @Transactional(readOnly = true)
     public List<TitleCardDto> catalog(String query, String type, String genre, UserAccount user) {
         ContentType requestedType = parseType(type);
-        String normalizedQuery = normalize(query);
-        String normalizedGenre = normalize(genre);
+        Specification<CatalogTitle> spec = CatalogTitleSpecifications.filtered(query, requestedType, genre);
         UserCatalogContext context = contextFor(user);
-
-        return titles.findAllByOrderByDisplayPriorityAscTitleAsc().stream()
-            .filter(title -> requestedType == null || title.getType() == requestedType)
-            .filter(title -> normalizedGenre.isBlank() || title.getGenres().stream().anyMatch(g -> normalize(g).equals(normalizedGenre)))
-            .filter(title -> normalizedQuery.isBlank() || matches(title, normalizedQuery))
+        return titles.findAll(spec, DEFAULT_SORT).stream()
             .map(title -> toCard(title, context))
             .toList();
     }
@@ -305,17 +321,6 @@ public class CatalogService {
         return mediaStorage.hlsMasterPlaylistExists(videoId) ? StreamingMode.HLS_AVAILABLE : StreamingMode.HLS_MISSING;
     }
 
-    private boolean matches(CatalogTitle title, String query) {
-        String source = String.join(" ",
-            title.getTitle(),
-            title.getTagline(),
-            title.getSynopsis(),
-            title.getType().name(),
-            String.join(" ", title.getGenres())
-        );
-        return normalize(source).contains(query);
-    }
-
     private ContentType parseType(String type) {
         if (type == null || type.isBlank()) {
             return null;
@@ -327,8 +332,20 @@ public class CatalogService {
         }
     }
 
-    private String normalize(String value) {
-        return value == null ? "" : value.trim().toLowerCase(Locale.ROOT);
+    private int safePage(Integer page) {
+        int value = page == null ? 0 : page;
+        if (value < 0) {
+            throw new BadRequestException("Le numéro de page doit être positif ou nul.");
+        }
+        return value;
+    }
+
+    private int safeSize(Integer size) {
+        int value = size == null ? DEFAULT_PAGE_SIZE : size;
+        if (value < 1 || value > MAX_PAGE_SIZE) {
+            throw new BadRequestException("La taille de page doit être comprise entre 1 et " + MAX_PAGE_SIZE + ".");
+        }
+        return value;
     }
 
     private record UserCatalogContext(UserAccount user, Map<Long, UserProgress> progressByVideoId, Set<Long> watchlistTitleIds) {
