@@ -146,6 +146,9 @@ public class CatalogService {
         UserCatalogContext context = contextFor(user);
         StreamingMode streamingMode = streamingMode(video.getId());
         String hlsUrl = streamingMode == StreamingMode.HLS_AVAILABLE ? "/api/videos/" + video.getId() + "/hls/master.m3u8" : null;
+        String thumbnailsUrl = mediaStorage.mode() == MediaStorageMode.LOCAL && mediaStorage.thumbnailManifestExists(video.getId())
+            ? "/api/videos/" + video.getId() + "/thumbnails/manifest.json"
+            : null;
         return new PlaybackDto(
             video.getId(),
             title.getSlug(),
@@ -162,6 +165,7 @@ public class CatalogService {
             hlsUrl,
             streamingMode,
             "/api/videos/" + video.getId() + "/subtitles",
+            thumbnailsUrl,
             progressFor(video, context)
         );
     }
