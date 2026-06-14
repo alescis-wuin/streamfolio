@@ -18,7 +18,7 @@ Le projet privilégie une architecture simple à lancer et à évaluer : un back
 | Frontend | HTML, CSS, JavaScript natif, PWA, Service Worker |
 | Vidéo | Lecteur HTML5, MP4 progressif, requêtes HTTP Range, sous-titres WebVTT |
 | Outillage | Maven, Docker, Docker Compose, scripts Bash/PowerShell |
-| CI | GitHub Actions : tests Maven, checks statiques, smoke test HTTP, build Docker |
+| CI | GitHub Actions : tests Maven, checks statiques, smoke tests HTTP, mode local-media, build Docker |
 
 ## Fonctionnalités
 
@@ -151,38 +151,31 @@ Sur Windows :
 
 ## Vérification
 
-```bash
-cd backend
-mvn clean test
-```
+Validation complète depuis la racine :
 
 ```bash
-node --check src/main/resources/static/app.js
+bash scripts/validate.sh
 ```
 
-Depuis la racine :
+Cette commande vérifie :
+
+- l'absence de fichiers générés suivis par Git : `backend/target/`, `*.class`, `__pycache__`, `*.pyc` ;
+- la syntaxe des scripts shell ;
+- la syntaxe JavaScript ;
+- la compilation du script Python de génération des affiches ;
+- `mvn clean test` ;
+- le packaging Maven ;
+- le démarrage applicatif en mode `classpath` ;
+- `./scripts/smoke.sh` en mode `classpath` ;
+- la préparation du stockage local ;
+- le démarrage applicatif en mode `local-media` ;
+- `./scripts/smoke.sh` en mode `local-media`.
+
+Vérification ciblée des fichiers générés suivis par Git :
 
 ```bash
-bash -n scripts/*.sh
-python3 -m py_compile scripts/regenerate-posters.py
+bash scripts/check-clean-tree.sh
 ```
-
-Dans un autre terminal, une fois l'application lancée :
-
-```bash
-./scripts/smoke.sh
-```
-
-Le smoke test vérifie notamment :
-
-- `/api/health` ;
-- login de démonstration ;
-- cookie de session ;
-- `/api/me` ;
-- sections du catalogue ;
-- genres ;
-- catalogue filtré ;
-- endpoint vidéo protégé avec header HTTP `Range`.
 
 Checklist complète : [`docs/validation-checklist.md`](docs/validation-checklist.md).
 
@@ -197,19 +190,6 @@ frontend/                    Notes frontend
 scripts/                     Scripts Linux/Windows et smoke test HTTP
 docs/                        Architecture, recherche, roadmap, captures, validation, setup GitHub
 .github/workflows/           CI GitHub Actions
-```
-
-## Repository GitHub
-
-Le connecteur disponible ici ne permet pas de créer directement un nouveau repository. Les commandes de création sont documentées dans [`docs/github/repository-setup.md`](docs/github/repository-setup.md).
-
-Commande recommandée avec GitHub CLI :
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: Streamfolio"
-gh repo create streamfolio --private --source=. --remote=origin --push
 ```
 
 ## Limites assumées
