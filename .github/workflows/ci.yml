@@ -41,12 +41,28 @@ jobs:
       - name: Full validation
         run: bash scripts/validate.sh
 
+      - name: Install Playwright dependencies
+        run: |
+          npm install
+          npx playwright install --with-deps chromium
+
+      - name: Run Playwright e2e tests
+        run: npm run test:e2e
+
       - name: Upload validation logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: validation-logs
           path: build/validation-logs
+          if-no-files-found: ignore
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: build/playwright-report
           if-no-files-found: ignore
 
       - name: Docker build
