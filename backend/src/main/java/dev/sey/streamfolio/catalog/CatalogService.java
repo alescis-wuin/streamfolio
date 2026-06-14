@@ -94,7 +94,7 @@ public class CatalogService {
         ContentType requestedType = parseType(type);
         Specification<CatalogTitle> spec = CatalogTitleSpecifications.filtered(query, requestedType, genre);
         UserCatalogContext context = contextFor(user);
-        return titles.findAll(spec, DEFAULT_SORT).stream()
+        return titles.findAllWithGraph(spec, DEFAULT_SORT).stream()
             .map(title -> toCard(title, context))
             .toList();
     }
