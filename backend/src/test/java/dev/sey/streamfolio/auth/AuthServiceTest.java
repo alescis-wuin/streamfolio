@@ -76,6 +76,23 @@ class AuthServiceTest {
     }
 
     @Test
+    void cleanupRemovesExpiredSessions() {
+        AuthService shortSessionAuth = new AuthService(
+            users,
+            passwordEncoder,
+            Duration.ZERO,
+            Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC)
+        );
+        UserAccount user = user("alexis@example.dev", "demo1234");
+        when(users.findByEmail("alexis@example.dev")).thenReturn(Optional.of(user));
+
+        LoginResult result = shortSessionAuth.login(new LoginRequest("alexis@example.dev", "demo1234"));
+
+        assertThat(shortSessionAuth.purgeExpiredSessions()).isEqualTo(1);
+        assertThat(shortSessionAuth.findByToken(result.token())).isEmpty();
+    }
+
+    @Test
     void logoutInvalidatesSession() {
         UserAccount user = user("alexis@example.dev", "demo1234");
         when(users.findByEmail("alexis@example.dev")).thenReturn(Optional.of(user));
