@@ -30,12 +30,12 @@
 - Smoke test HTTP basé sur cookie de session.
 - Checklist de validation.
 
-## V1.3 livrée / en validation
+## V1.3 livrée
 
 - Couche `MediaStorageService`.
 - Mode média `classpath` par défaut.
 - Mode média `local` via profil `local-media`.
-- Dossiers préparés pour `originals`, `subtitles` et `hls`.
+- Dossiers préparés pour `originals`, `subtitles`, `hls` et `thumbnails`.
 - Docker Compose avec volume média optionnel.
 - Endpoints HLS protégés.
 - Lecteur frontend HLS via hls.js avec fallback MP4.
@@ -44,27 +44,36 @@
 - Tests unitaires du stockage média.
 - Tests d'intégration du streaming local.
 
-## V1.4
+## V1.4 en cours
 
-- Page admin minimale : créer titre, vidéo, genres, upload de fichier.
-- Modèle `MediaAsset` / `TranscodeJob`.
-- Lancement de transcodage asynchrone avec statuts `PENDING`, `RUNNING`, `DONE`, `FAILED`.
-- Thumbnails de timeline et preview seekbar.
-- Pagination et tri enrichis côté API.
-- Recherche avec pondération titre/genre/synopsis.
-- Préférences utilisateur : autoplay, sous-titres, volume.
+- Modèles `MediaAsset` et `TranscodeJob`.
+- API admin média : jobs, assets, lancement de transcodage.
+- Transcodage asynchrone observable avec statuts `PENDING`, `RUNNING`, `DONE`, `FAILED`.
+- Thumbnails timeline avec manifest JSON.
+- Route frontend `#/admin` pour observer et lancer les jobs.
+- Découpage progressif de `app.js` en modules `api`, `utils`, `player`, `media-admin`.
+- Styles admin/timeline extraits dans `media-admin.css`.
+- Profil PostgreSQL.
+- Profil MinIO préparé.
+
+## V1.5
+
+- Upload admin réel de fichier vidéo.
+- Création/édition admin de titres, vidéos et genres.
+- Association automatique upload → asset → job.
+- Validation fichier source, taille, extension, durée et codec.
+- Import/export JSON du catalogue.
 - Skeleton loaders.
 - États d'erreur détaillés côté UI.
-- Import/export JSON du catalogue.
-- Découpage progressif de `app.js` et `styles.css`.
+- Préférences utilisateur : autoplay, sous-titres, volume.
 
 ## V2
 
-- PostgreSQL.
-- MinIO ou S3.
+- Adaptateur MinIO/S3 réellement branché pour les fichiers originaux et dérivés.
 - File de jobs de transcodage robuste et relançable.
 - Pipeline média complet : upload, validation, transcodage, posters, thumbnails, variantes vidéo.
 - HLS de production avec politique d'encodage configurable.
+- PostgreSQL comme profil recommandé hors démo locale.
 - Recommandations basiques.
 - Profils utilisateur.
 - Historique complet.
@@ -72,7 +81,7 @@
 ## V3
 
 - Recherche avancée via Elasticsearch/OpenSearch.
-- Observabilité : Actuator, Prometheus, Grafana.
+- Observabilité : Actuator, Prometheus et Grafana.
 - CDN.
 - Applications packagées : Tauri/Capacitor.
 - Accessibilité auditée WCAG 2.2 AA.
