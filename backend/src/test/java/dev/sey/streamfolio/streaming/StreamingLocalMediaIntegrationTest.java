@@ -2,6 +2,7 @@ package dev.sey.streamfolio.streaming;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.containsString;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -122,6 +123,7 @@ class StreamingLocalMediaIntegrationTest {
 
     private Cookie login() throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
+                .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{\"email\":\"alexis@example.dev\",\"password\":\"demo1234\"}"))
             .andExpect(status().isOk())
