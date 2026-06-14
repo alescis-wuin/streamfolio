@@ -30,7 +30,7 @@ public class TranscodeJobWorker {
     public void run(Long jobId) {
         markRunning(jobId, "Transcodage demarre.");
         try {
-            TranscodeJob job = jobs.findById(jobId).orElseThrow();
+            TranscodeJob job = jobs.findWithVideoById(jobId).orElseThrow();
             HlsTranscodeResult result = transcodingService.transcodeToHlsAndThumbnails(
                 job.getVideo().getId(),
                 job.isForce(),
@@ -65,7 +65,7 @@ public class TranscodeJobWorker {
     }
 
     private void markFailed(Long jobId, String message) {
-        jobs.findById(jobId).ifPresent(job -> {
+        jobs.findWithVideoById(jobId).ifPresent(job -> {
             job.markFailed(message);
             jobs.save(job);
             assets.findByVideo(job.getVideo()).ifPresent(asset -> {
