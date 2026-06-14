@@ -1,97 +1,91 @@
 # Checklist de validation
 
-Objectif : vérifier que la couche sécurité, les tests, le smoke test, le parcours utilisateur et le stockage média local sont stables avant de passer au pipeline FFmpeg/HLS.
+Objectif : vérifier que le dépôt est propre, que les tests backend passent, que le smoke test fonctionne en mode standard et que le mode `local-media` reste opérationnel avant de poursuivre les phases streaming avancées.
 
-## 1. Validation backend
-
-Depuis `backend/` :
-
-```bash
-mvn clean test
-```
-
-Critères attendus :
-
-- compilation Java OK ;
-- tests unitaires `AuthServiceTest` OK ;
-- tests sécurité `SecurityIntegrationTest` OK ;
-- tests catalogue `CatalogServiceIntegrationTest` OK ;
-- tests stockage média `MediaStorageServiceTest` OK ;
-- tests streaming local `StreamingLocalMediaIntegrationTest` OK ;
-- contexte Spring chargé sans erreur.
-
-## 2. Validation statique
-
-Depuis `backend/` :
-
-```bash
-node --check src/main/resources/static/app.js
-```
+## 1. Validation complète automatisée
 
 Depuis la racine :
 
 ```bash
-bash -n scripts/*.sh
-python3 -m py_compile scripts/regenerate-posters.py
+bash scripts/validate.sh
 ```
 
 Critères attendus :
 
+- aucun fichier généré suivi par Git ;
+- scripts shell syntaxiquement valides ;
 - JavaScript syntaxiquement valide ;
-- scripts shell valides ;
-- script Python compilable.
+- script Python compilable ;
+- `mvn clean test` OK ;
+- package Maven généré ;
+- application démarrée en mode `classpath` ;
+- `./scripts/smoke.sh` OK en mode `classpath` ;
+- médias locaux préparés ;
+- application démarrée en mode `local-media` ;
+- `./scripts/smoke.sh` OK en mode `local-media`.
 
-## 3. Validation applicative classpath
+Les logs applicatifs sont écrits dans :
 
-Terminal 1 :
+```text
+build/validation-logs/
+```
+
+## 2. Vérification des fichiers générés suivis par Git
+
+Depuis la racine :
+
+```bash
+bash scripts/check-clean-tree.sh
+```
+
+La commande échoue si Git suit encore un fichier correspondant à :
+
+```text
+backend/target/
+*.class
+__pycache__/
+*.pyc
+```
+
+Si la commande échoue, corriger avec :
+
+```bash
+git rm -r --cached backend/target '**/*.class' '**/__pycache__' '**/*.pyc'
+git commit -m "Remove generated files from repository"
+```
+
+## 3. Validation applicative manuelle
+
+Démarrage standard :
 
 ```bash
 cd backend
 mvn spring-boot:run
 ```
 
-Terminal 2, depuis la racine :
+Dans un second terminal :
 
 ```bash
 ./scripts/smoke.sh
 ```
 
-Critères attendus :
-
-- `/api/health` répond ;
-- login OK ;
-- cookie de session conservé par le smoke test ;
-- `/api/me` répond après login ;
-- sections, genres et catalogue répondent ;
-- endpoint vidéo protégé accessible après login ;
-- logout OK.
-
-## 4. Validation applicative local-media
-
-Depuis la racine :
+Démarrage `local-media` :
 
 ```bash
-bash scripts/prepare-local-media.sh
-```
-
-Terminal 1 :
-
-```bash
+bash scripts/prepare-local-media.sh backend/data/media
 cd backend
 mvn spring-boot:run -Dspring-boot.run.profiles=local-media
 ```
 
-Terminal 2, depuis la racine :
+Dans un second terminal :
 
 ```bash
 ./scripts/smoke.sh
 ```
 
-Critères attendus : mêmes résultats que le mode classpath, mais les fichiers sont lus depuis `backend/data/media`.
+## 4. Validation sécurité minimale
 
-## 5. Validation sécurité minimale
-
-À vérifier manuellement ou par test HTTP :
+À vérifier par tests ou manuellement :
 
 - `/api/videos/1` sans cookie renvoie `401` ;
 - `/api/videos/1/stream` sans cookie renvoie `401` ;
@@ -101,15 +95,15 @@ Critères attendus : mêmes résultats que le mode classpath, mais les fichiers 
 - le cookie de session contient `HttpOnly` et `SameSite=Strict` ;
 - `/api/auth/logout` invalide la session.
 
-## 6. Validation UI
+## 5. Validation UI
 
 Parcours recommandé dans le navigateur :
 
 1. ouvrir `http://localhost:8080` ;
-2. se connecter avec le compte de démonstration ;
+2. se connecter avec `alexis@example.dev / demo1234` ;
 3. vérifier l'accueil ;
 4. ouvrir Films et Séries ;
-5. chercher un titre ;
+5. chercher `botanical` ;
 6. ouvrir une fiche détail ;
 7. ajouter puis retirer un titre de Ma liste ;
 8. lancer une vidéo ;
@@ -118,26 +112,28 @@ Parcours recommandé dans le navigateur :
 11. se déconnecter ;
 12. vérifier qu'une URL vidéo directe n'est plus accessible.
 
-## 7. Validation CI
+## 6. Validation CI
 
-Sur GitHub Actions, la CI doit valider :
+La CI GitHub Actions exécute :
 
-- checks shell ;
-- check JavaScript ;
-- check Python ;
-- `mvn clean test` ;
-- build JAR ;
-- démarrage application ;
-- smoke test HTTP ;
+- installation Java ;
+- installation Node.js ;
+- installation `jq` ;
+- `bash scripts/validate.sh` ;
+- publication de l'artifact `validation-logs` ;
 - build Docker.
 
-## 8. Passage à la phase suivante
+La CI est déclenchée automatiquement sur :
 
-La phase FFmpeg/HLS ne doit commencer que si :
+- push vers `main` ou `develop` ;
+- pull request vers `main` ou `develop` ;
+- lancement manuel via `workflow_dispatch`.
 
-- `mvn clean test` est vert ;
-- `mvn spring-boot:run` démarre sans erreur ;
-- `./scripts/smoke.sh` passe en mode classpath ;
-- `./scripts/smoke.sh` passe en mode local-media ;
+## 7. Passage à la phase suivante
+
+La phase suivante ne doit commencer que si :
+
+- `bash scripts/validate.sh` passe localement ;
+- le parcours UI ne montre pas de régression bloquante ;
 - la CI GitHub Actions est verte ;
-- le parcours UI ci-dessus ne montre pas de régression bloquante.
+- les captures `home.png`, `detail.png`, `player.png`, `mobile.png` et `demo.gif` sont ajoutées ou explicitement reportées.
