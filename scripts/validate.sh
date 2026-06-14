@@ -74,6 +74,7 @@ run_step python3 -m py_compile scripts/regenerate-posters.py
 
 run_step bash -lc 'cd backend && node --check src/main/resources/static/app.js'
 run_step bash -lc 'cd backend && node --check src/main/resources/static/csrf.js'
+run_step bash -lc 'cd backend && find src/main/resources/static/js -name "*.js" -print0 | xargs -0 -r -n1 node --check'
 run_step bash -lc 'node --check playwright.config.js'
 run_step bash -lc 'find tests/e2e -name "*.js" -print0 | xargs -0 -r -n1 node --check'
 run_step bash -lc 'cd backend && mvn -B clean test'
