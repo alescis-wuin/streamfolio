@@ -5,9 +5,9 @@ const skipWebServer = process.env.PLAYWRIGHT_SKIP_WEBSERVER === 'true';
 
 module.exports = defineConfig({
   testDir: './tests/e2e',
-  timeout: 45_000,
+  timeout: 45000,
   expect: {
-    timeout: 10_000,
+    timeout: 10000,
   },
   fullyParallel: false,
   workers: process.env.CI ? 1 : undefined,
@@ -31,7 +31,7 @@ module.exports = defineConfig({
     command: 'mvn -q -f backend/pom.xml spring-boot:run',
     url: `${baseURL}/api/health`,
     reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
+    timeout: 120000,
     stdout: 'pipe',
     stderr: 'pipe',
   },
