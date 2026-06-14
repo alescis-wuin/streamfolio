@@ -22,7 +22,7 @@ import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Repository;
 
 @Repository
-class CatalogTitleGraphRepositoryImpl implements CatalogTitleGraphRepository {
+public class CatalogTitleGraphRepositoryImpl implements CatalogTitleGraphRepository {
     @PersistenceContext
     private EntityManager entityManager;
 
