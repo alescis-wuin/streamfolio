@@ -28,21 +28,17 @@ public class CatalogTitleGraphRepositoryImpl implements CatalogTitleGraphReposit
 
     @Override
     public Page<CatalogTitle> findPageWithGraph(Specification<CatalogTitle> specification, Pageable pageable) {
-        List<CatalogTitle> pageSkeleton = findPageSkeleton(specification, pageable);
+        List<CatalogTitle> pageSkeleton = findSkeleton(specification, pageable.getSort(), pageable);
         long total = count(specification);
-        if (pageSkeleton.isEmpty()) {
-            return new PageImpl<>(List.of(), pageable, total);
-        }
-
-        List<Long> ids = pageSkeleton.stream().map(CatalogTitle::getId).toList();
-        Map<Long, Integer> orderById = orderById(ids);
-        List<CatalogTitle> titles = fetchTitlesWithGenres(ids);
-        fetchTitlesWithVideos(ids);
-        titles.sort(Comparator.comparingInt(title -> orderById.getOrDefault(title.getId(), Integer.MAX_VALUE)));
-        return new PageImpl<>(titles, pageable, total);
+        return new PageImpl<>(fetchGraph(pageSkeleton), pageable, total);
     }
 
-    private List<CatalogTitle> findPageSkeleton(Specification<CatalogTitle> specification, Pageable pageable) {
+    @Override
+    public List<CatalogTitle> findAllWithGraph(Specification<CatalogTitle> specification, Sort sort) {
+        return fetchGraph(findSkeleton(specification, sort, null));
+    }
+
+    private List<CatalogTitle> findSkeleton(Specification<CatalogTitle> specification, Sort sort, Pageable pageable) {
         CriteriaBuilder builder = entityManager.getCriteriaBuilder();
         CriteriaQuery<CatalogTitle> query = builder.createQuery(CatalogTitle.class);
         Root<CatalogTitle> root = query.from(CatalogTitle.class);
@@ -52,12 +48,26 @@ public class CatalogTitleGraphRepositoryImpl implements CatalogTitleGraphReposit
         if (predicate != null) {
             query.where(predicate);
         }
-        query.orderBy(orders(pageable.getSort(), root, builder));
+        query.orderBy(orders(sort, root, builder));
 
         TypedQuery<CatalogTitle> typedQuery = entityManager.createQuery(query);
-        typedQuery.setFirstResult(Math.toIntExact(pageable.getOffset()));
-        typedQuery.setMaxResults(pageable.getPageSize());
+        if (pageable != null) {
+            typedQuery.setFirstResult(Math.toIntExact(pageable.getOffset()));
+            typedQuery.setMaxResults(pageable.getPageSize());
+        }
         return typedQuery.getResultList();
+    }
+
+    private List<CatalogTitle> fetchGraph(List<CatalogTitle> skeleton) {
+        if (skeleton.isEmpty()) {
+            return List.of();
+        }
+        List<Long> ids = skeleton.stream().map(CatalogTitle::getId).toList();
+        Map<Long, Integer> orderById = orderById(ids);
+        List<CatalogTitle> titles = fetchTitlesWithGenres(ids);
+        fetchTitlesWithVideos(ids);
+        titles.sort(Comparator.comparingInt(title -> orderById.getOrDefault(title.getId(), Integer.MAX_VALUE)));
+        return titles;
     }
 
     private long count(Specification<CatalogTitle> specification) {
