@@ -43,15 +43,18 @@ class TranscodingServiceTest {
     }
 
     @Test
-    void transcodesLocalOriginalToHlsPlaylist() {
+    void transcodesLocalOriginalToMultiBitrateHlsPlaylist() {
         when(catalogService.findVideo(1L)).thenReturn(video());
 
         HlsTranscodeResult result = transcodingService.transcodeToHls(1L, true);
 
         assertThat(result.generated()).isTrue();
         assertThat(result.playlist()).exists();
-        assertThat(result.outputDirectory().resolve("segment_000.ts")).exists();
-        assertThat(read(result.playlist())).contains("EXTM3U", "PLAYLIST-TYPE:VOD");
+        assertThat(result.outputDirectory().resolve("360p/segment_000.ts")).exists();
+        assertThat(result.outputDirectory().resolve("720p/segment_000.ts")).exists();
+        assertThat(result.outputDirectory().resolve("1080p/segment_000.ts")).exists();
+        assertThat(read(result.playlist()))
+            .contains("EXTM3U", "EXT-X-STREAM-INF", "360p/playlist.m3u8", "720p/playlist.m3u8", "1080p/playlist.m3u8");
     }
 
     @Test
@@ -63,7 +66,7 @@ class TranscodingServiceTest {
 
         assertThat(first.generated()).isTrue();
         assertThat(second.generated()).isFalse();
-        assertThat(second.message()).contains("déjà présente");
+        assertThat(second.message()).contains("presente");
     }
 
     private CatalogVideo video() {
