@@ -1,97 +1,108 @@
+<div align="center">
+
 # Streamfolio
 
-Plateforme de streaming vidéo de démonstration pour portfolio, développée avec Java, Spring Boot et une PWA native servie par le backend.
+**Plateforme de streaming vidéo de démonstration, inspirée des expériences Netflix-like, développée pour portfolio.**
+
+[![CI](https://github.com/alescis-wuin/streamfolio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alescis-wuin/streamfolio/actions/workflows/ci.yml)
+![Version](https://img.shields.io/badge/version-1.0.0-blue)
+![Dernier commit](https://img.shields.io/github/last-commit/alescis-wuin/streamfolio/main?label=dernier%20commit)
+![Java](https://img.shields.io/badge/Java-21-orange)
+![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1.0-6DB33F)
+![PWA](https://img.shields.io/badge/PWA-native-5A0FC8)
+![Docker](https://img.shields.io/badge/Docker-ready-2496ED)
+![Git LFS](https://img.shields.io/badge/Git%20LFS-enabled-blue)
+
+</div>
+
+---
+
+## Aperçu
+
+![Démo Streamfolio](docs/record/demo.gif)
+
+> [!NOTE]
+> Le GIF ci-dessus est une démo longue stockée via Git LFS. Pour un README public, une version plus courte et plus légère pourra être ajoutée dans `docs/screenshots/demo.gif`.
 
 ## Objectif
 
-Streamfolio montre la réalisation d'une application complète de type streaming : authentification, catalogue films/séries, watchlist, progression de lecture, fiches détail et lecteur vidéo HTML5 avec streaming MP4 progressif.
+Streamfolio démontre la réalisation d'une application complète de type streaming : authentification, catalogue films/séries, watchlist, progression de lecture, fiches détail, lecteur vidéo HTML5, streaming MP4 progressif et socle HLS local.
 
-Le projet privilégie une architecture simple à lancer et à évaluer : un backend Spring Boot, une base H2 pour la démo, une interface responsive sans build frontend obligatoire et des médias de démonstration libres de contenu protégé.
+Le projet privilégie une architecture simple à lancer et à évaluer : un backend Spring Boot, une base H2 pour la démo, une interface PWA responsive sans build frontend obligatoire et des médias de démonstration libres de contenu protégé.
+
+## Fonctionnalités principales
+
+| Domaine | Fonctionnalités |
+|---|---|
+| Authentification | Spring Security, BCrypt, cookie `HttpOnly`, logout serveur, session courte |
+| Catalogue | Films, séries, genres, recherche, filtres, rails horizontaux, hero immersif |
+| UX streaming | Fiches détail, progression, watchlist, reprise de lecture, raccourcis clavier |
+| Vidéo | Lecteur HTML5, sous-titres WebVTT, HTTP Range, fallback MP4 progressif |
+| HLS local | Stockage local, génération HLS via FFmpeg/script, endpoint HLS protégé, fallback MP4 |
+| Qualité | Tests Maven, tests sécurité, tests streaming, smoke tests, CI GitHub Actions |
+| Portfolio | Documentation, captures prévues, GIF, Docker, Git LFS, validation automatisée |
 
 ## Stack
 
 | Couche | Technologies |
 |---|---|
-| Backend | Java 21, Spring Boot, Spring MVC, Spring Security, Spring Data JPA, Bean Validation |
-| Sécurité | BCrypt, cookie de session HttpOnly, SameSite Strict, expiration configurable |
+| Backend | Java 21, Spring Boot 4.1, Spring MVC, Spring Security, Spring Data JPA, Bean Validation |
+| Sécurité | BCrypt, cookie de session `HttpOnly`, `SameSite=Strict`, expiration configurable |
 | Base de données | H2 en mémoire par défaut, profil persistant disponible |
 | Frontend | HTML, CSS, JavaScript natif, PWA, Service Worker |
-| Vidéo | Lecteur HTML5, MP4 progressif, requêtes HTTP Range, sous-titres WebVTT |
-| Outillage | Maven, Docker, Docker Compose, scripts Bash/PowerShell |
-| CI | GitHub Actions : tests Maven, checks statiques, smoke tests HTTP, mode local-media, build Docker |
+| Streaming | MP4 progressif, HTTP Range, WebVTT, HLS local, hls.js avec fallback MP4 |
+| Média | Classpath par défaut, stockage local `backend/data/media`, Git LFS pour les fichiers lourds |
+| Outillage | Maven, Docker, Docker Compose, Bash, PowerShell, FFmpeg optionnel |
+| CI | GitHub Actions : validation complète, logs en artifact, build Docker |
 
-## Fonctionnalités
+## Structure du projet
 
-- Authentification de démonstration avec Spring Security.
-- Mot de passe de démonstration encodé avec BCrypt.
-- Session applicative courte via cookie HttpOnly.
-- Endpoint de logout serveur.
-- Catalogue de films et séries avec genres, recherche et filtres.
-- Accueil avec hero immersif et rails horizontaux.
-- Pages dédiées : Accueil, Films, Séries, Ma liste.
-- Fiche détail avec métadonnées, genres, affiche, synopsis et épisodes pour les séries.
-- Watchlist utilisateur.
-- Sauvegarde de progression par vidéo.
-- Lecteur HTML5 avec sous-titres WebVTT.
-- Raccourcis clavier du lecteur : `k`, espace, flèches, `m`, `f`.
-- Streaming MP4 via endpoint Spring compatible HTTP Range.
-- Endpoints vidéo protégés : metadata, stream, sous-titres et progression.
-- PWA responsive utilisable sans dépendance frontend externe.
-- Données, affiches SVG et vidéos de démonstration incluses localement.
-
-## Captures d'écran
-
-Les captures sont à placer dans `docs/screenshots/`.
-
-Captures recommandées :
-
-| Fichier | Contenu |
-|---|---|
-| `docs/screenshots/home.png` | Accueil après connexion, avec hero et rails visibles |
-| `docs/screenshots/detail.png` | Fiche détail d'un film ou d'une série |
-| `docs/screenshots/player.png` | Lecteur vidéo en cours de lecture |
-| `docs/screenshots/mobile.png` | Vue responsive mobile |
-| `docs/screenshots/demo.gif` | Parcours court : login, recherche, détail, lecture, watchlist |
-
-Quand les fichiers sont ajoutés, insérer par exemple :
-
-```md
-![Accueil Streamfolio](docs/screenshots/home.png)
-![Lecteur vidéo](docs/screenshots/player.png)
+```text
+backend/                     API Spring Boot + frontend PWA servi en statique
+backend/src/main/java/       Code Java backend
+backend/src/main/resources/  Configuration, UI, médias et données de démonstration
+backend/src/test/            Tests backend
+frontend/                    Notes frontend
+scripts/                     Scripts Linux/Windows, smoke tests, validation, HLS
+docs/                        Architecture, roadmap, captures, validation, setup GitHub
+.github/workflows/           CI GitHub Actions
 ```
 
-Les consignes détaillées sont dans [`docs/screenshots/README.md`](docs/screenshots/README.md).
+<details>
+<summary><strong>Parcours utilisateur couvert</strong></summary>
 
-## Démarrage
+1. Connexion avec le compte de démonstration.
+2. Chargement du catalogue.
+3. Navigation dans les rails façon plateforme de streaming.
+4. Recherche par titre, genre ou ambiance.
+5. Ouverture d'une fiche détail.
+6. Ajout/retrait de la watchlist.
+7. Lancement d'une vidéo.
+8. Sauvegarde automatique de la progression.
+9. Reprise de lecture.
+10. Déconnexion serveur.
+
+</details>
+
+## Démarrage rapide
 
 ### Prérequis
 
-- Java 21+
-- Maven 3.9+
-- Navigateur moderne
-- `jq` pour le smoke test HTTP
-- Docker et Docker Compose, optionnels
-
-Installation de `jq` :
+| Outil | Usage |
+|---|---|
+| Java 21+ | Exécution backend |
+| Maven 3.9+ | Build et tests |
+| `jq` | Smoke tests HTTP |
+| Docker / Docker Compose | Lancement conteneurisé optionnel |
+| FFmpeg | Transcodage HLS local optionnel |
+| Git LFS | Récupération des médias versionnés |
 
 ```bash
-# Debian / Ubuntu
-sudo apt install jq
-
-# Fedora
-sudo dnf install jq
-
-# Arch Linux
-sudo pacman -S jq
-
-# macOS avec Homebrew
-brew install jq
-
-# Windows avec winget
-winget install jqlang.jq
+git lfs install
+git lfs pull
 ```
 
-### Lancer localement
+### Lancement local
 
 ```bash
 cd backend
@@ -111,47 +122,15 @@ Email        : alexis@example.dev
 Mot de passe : demo1234
 ```
 
-### Lancer avec Docker
+### Lancement Docker
 
 ```bash
 docker compose up --build
 ```
 
-### Base persistante locale
+## Validation
 
-Par défaut, l'application utilise H2 en mémoire. La progression et la watchlist sont donc réinitialisées à chaque lancement.
-
-Pour conserver l'état localement :
-
-```bash
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=persistent
-```
-
-### Console H2 locale
-
-La console H2 est désactivée par défaut. Pour l'activer explicitement en développement :
-
-```bash
-cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=dev
-```
-
-Réinitialisation de l'état local :
-
-```bash
-./scripts/reset-dev-state.sh
-```
-
-Sur Windows :
-
-```powershell
-.\scripts\reset-dev-state.ps1
-```
-
-## Vérification
-
-Validation complète depuis la racine :
+Commande principale depuis la racine :
 
 ```bash
 bash scripts/validate.sh
@@ -177,52 +156,118 @@ Vérification ciblée des fichiers générés suivis par Git :
 bash scripts/check-clean-tree.sh
 ```
 
-Checklist complète : [`docs/validation-checklist.md`](docs/validation-checklist.md).
-
-## Structure
+Les logs de validation sont écrits dans :
 
 ```text
-backend/                     API Spring Boot + frontend PWA servi en statique
-backend/src/main/java/       Code Java backend
-backend/src/main/resources/  Configuration, UI, médias et données de démo
-backend/src/test/            Tests backend
-frontend/                    Notes frontend
-scripts/                     Scripts Linux/Windows et smoke test HTTP
-docs/                        Architecture, recherche, roadmap, captures, validation, setup GitHub
-.github/workflows/           CI GitHub Actions
+build/validation-logs/
 ```
+
+## Streaming local et HLS
+
+Mode par défaut : médias servis depuis le classpath.
+
+Mode local : médias lus depuis `backend/data/media`.
+
+```bash
+bash scripts/prepare-local-media.sh backend/data/media
+```
+
+Transcodage HLS local de démonstration :
+
+```bash
+bash scripts/transcode-demo-hls.sh 1 aurora-drift.mp4
+```
+
+Sortie attendue :
+
+```text
+backend/data/media/hls/1/master.m3u8
+```
+
+Lancer ensuite le backend en mode local-media :
+
+```bash
+cd backend
+mvn spring-boot:run -Dspring-boot.run.profiles=local-media
+```
+
+Le lecteur choisit HLS quand `master.m3u8` existe, sinon il retombe automatiquement sur le MP4 progressif.
+
+## Médias, captures et Git LFS
+
+Les médias lourds sont suivis avec Git LFS via `.gitattributes`.
+
+| Zone | Statut |
+|---|---|
+| `backend/src/main/resources/media/*.mp4` | Suivi LFS |
+| `docs/record/*.mp4`, `*.mkv`, `*.gif`, `*.webm` | Suivi LFS |
+| `docs/screenshots/*.png`, `*.gif`, `*.mp4`, `*.webm` | Suivi LFS |
+| `backend/data/media/**` | Stockage local généré, non versionné |
+
+### Captures statiques à ajouter
+
+Les fichiers suivants sont prévus pour le README et le portfolio :
+
+- [ ] `docs/screenshots/home.png` — accueil après connexion ;
+- [ ] `docs/screenshots/detail.png` — fiche détail ;
+- [ ] `docs/screenshots/player.png` — lecteur vidéo ;
+- [ ] `docs/screenshots/mobile.png` — vue responsive mobile ;
+- [ ] `docs/screenshots/demo.gif` — GIF court optimisé pour README public.
+
+Consignes détaillées : [`docs/screenshots/README.md`](docs/screenshots/README.md).
+
+## Qualité technique
+
+| Contrôle | Couverture actuelle |
+|---|---|
+| Tests backend | Chargement contexte, auth, sécurité, catalogue, streaming, stockage média, FFmpeg/transcodage |
+| Smoke tests | Health, login, cookie, `/api/me`, sections, genres, catalogue, streaming Range, logout |
+| Sécurité | Endpoints vidéo protégés, cookie `HttpOnly`, absence de token dans le JSON login |
+| CI | Validation complète + build Docker |
+| Dépôt | `.gitignore`, `.dockerignore`, `.gitattributes`, Git LFS, contrôle des fichiers générés |
+
+## Documentation
+
+| Document | Rôle |
+|---|---|
+| [`docs/02-architecture.md`](docs/02-architecture.md) | Architecture générale |
+| [`docs/04-roadmap.md`](docs/04-roadmap.md) | Roadmap fonctionnelle |
+| [`docs/06-stockage-media.md`](docs/06-stockage-media.md) | Mode local, HLS et FFmpeg |
+| [`docs/06-verification.md`](docs/06-verification.md) | Validation locale et CI |
+| [`docs/validation-checklist.md`](docs/validation-checklist.md) | Checklist de passage de phase |
+| [`docs/screenshots/README.md`](docs/screenshots/README.md) | Captures et GIF |
 
 ## Limites assumées
 
-Cette version est conçue pour un portfolio, pas pour une production réelle.
+> [!IMPORTANT]
+> Cette version est conçue pour un portfolio, pas pour une production réelle.
 
-Limites principales :
-
-- compte utilisateur de démonstration préchargé ;
-- sessions applicatives en mémoire ;
-- cookie Secure désactivé en local HTTP, activable derrière HTTPS ;
-- base H2 par défaut ;
-- pas de rôles utilisateur avancés ;
-- pas de DRM ;
-- pas de stockage objet S3/MinIO ;
-- pas de transcodage FFmpeg ;
-- pas de streaming HLS/DASH adaptatif ;
-- pas de CDN ;
-- médias de démonstration courts et locaux.
+- Compte utilisateur de démonstration préchargé.
+- Sessions applicatives en mémoire.
+- Cookie `Secure` désactivé en local HTTP, activable derrière HTTPS.
+- Base H2 par défaut.
+- Pas de rôles utilisateur avancés.
+- Pas de DRM.
+- Pas de stockage objet S3/MinIO.
+- Pas de CDN.
+- HLS local démonstratif, sans pipeline complet d'administration/upload.
+- Médias de démonstration courts et locaux.
 
 ## Roadmap
 
 ### Court terme
 
-- Stabiliser la phase 2.5 : tests, smoke test, CI et validation UI.
+- Ajouter les captures statiques finales dans `docs/screenshots/`.
+- Remplacer le GIF long par un GIF court optimisé pour README public.
+- Stabiliser la phase HLS locale.
 - Découper progressivement `app.js` et `styles.css`.
 - Ajouter OpenAPI/Swagger.
-- Ajouter PostgreSQL en profil Docker.
 
 ### Moyen terme
 
+- Ajouter PostgreSQL en profil Docker.
 - Ajouter une page admin pour gérer titres, vidéos et genres.
-- Ajouter un pipeline FFmpeg pour générer affiches, thumbnails et variantes vidéo.
+- Ajouter un pipeline FFmpeg complet : upload, transcodage, posters, thumbnails, variantes vidéo.
 - Ajouter HLS avec qualité adaptative.
 - Ajouter des profils utilisateur.
 
@@ -236,4 +281,4 @@ Limites principales :
 
 ## Historique
 
-L'historique détaillé des versions V1 à V7 a été déplacé dans [`CHANGELOG.md`](CHANGELOG.md).
+L'historique détaillé des versions V1 à V7 est disponible dans [`CHANGELOG.md`](CHANGELOG.md).
