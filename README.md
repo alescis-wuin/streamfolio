@@ -21,9 +21,6 @@
 
 ![Démo Streamfolio](docs/record/demo.gif)
 
-> [!NOTE]
-> Le GIF ci-dessus est une démo longue stockée via Git LFS. Pour un README public, une version plus courte et plus légère pourra être ajoutée dans `docs/screenshots/demo.gif`.
-
 ### Captures d'écran
 
 #### Desktop
@@ -172,7 +169,7 @@
 
 Streamfolio démontre la réalisation d'une application complète de type streaming : authentification, catalogue films/séries, watchlist, progression de lecture, fiches détail, lecteur vidéo HTML5, streaming MP4 progressif et socle HLS local.
 
-Le projet privilégie une architecture simple à lancer et à évaluer : un backend Spring Boot, une base H2 pour la démo, une interface PWA responsive sans build frontend obligatoire et des médias de démonstration libres de contenu protégé.
+Le projet privilégie une architecture simple à lancer et à évaluer : un backend Spring Boot, une base H2 pour la démo, une interface PWA responsive sans build frontend obligatoire et des médias de démonstration libres d'utilisation.
 
 ## Fonctionnalités principales
 
