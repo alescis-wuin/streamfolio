@@ -9,7 +9,7 @@ if [ ! -d "$SOURCE" ]; then
   exit 1
 fi
 
-mkdir -p "$ROOT/originals" "$ROOT/subtitles" "$ROOT/hls"
+mkdir -p "$ROOT/originals" "$ROOT/subtitles" "$ROOT/hls" "$ROOT/thumbnails"
 
 for file in "$SOURCE"/*.mp4; do
   [ -e "$file" ] || continue
@@ -25,3 +25,4 @@ printf 'Local media storage prepared in %s\n' "$ROOT"
 printf 'Originals: %s/originals\n' "$ROOT"
 printf 'Subtitles: %s/subtitles\n' "$ROOT"
 printf 'HLS placeholder: %s/hls\n' "$ROOT"
+printf 'Thumbnails placeholder: %s/thumbnails\n' "$ROOT"
