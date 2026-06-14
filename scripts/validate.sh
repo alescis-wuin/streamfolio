@@ -31,11 +31,6 @@ run_step() {
   "$@"
 }
 
-check_module_js() {
-  local file="$1"
-  node --check --input-type=module < "$file" >/dev/null
-}
-
 start_app() {
   local mode="$1"
   shift
@@ -77,7 +72,6 @@ run_step bash scripts/check-clean-tree.sh
 run_step bash -n scripts/*.sh
 run_step python3 -m py_compile scripts/regenerate-posters.py
 
-run_step bash -lc 'source scripts/validate.sh >/dev/null 2>&1 || true'
 run_step bash -lc 'cd backend && for f in src/main/resources/static/app.js src/main/resources/static/js/*.js; do node --check --input-type=module < "$f" >/dev/null; done'
 run_step bash -lc 'cd backend && node --check src/main/resources/static/csrf.js'
 run_step bash -lc 'node --check playwright.config.js'
