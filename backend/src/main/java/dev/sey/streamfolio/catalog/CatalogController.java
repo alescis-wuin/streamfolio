@@ -1,5 +1,6 @@
 package dev.sey.streamfolio.catalog;
 
+import dev.sey.streamfolio.catalog.dto.CatalogPageResponse;
 import dev.sey.streamfolio.catalog.dto.PlaybackDto;
 import dev.sey.streamfolio.catalog.dto.ProgressDto;
 import dev.sey.streamfolio.catalog.dto.ProgressUpdateRequest;
@@ -40,11 +41,13 @@ public class CatalogController {
     }
 
     @GetMapping("/catalog")
-    public List<TitleCardDto> catalog(@RequestParam(required = false) String query,
-                                      @RequestParam(required = false) String type,
-                                      @RequestParam(required = false) String genre,
-                                      @RequestAttribute(value = "authUser", required = false) UserAccount user) {
-        return catalogService.catalog(query, type, genre, user);
+    public CatalogPageResponse catalog(@RequestParam(required = false) String query,
+                                       @RequestParam(required = false) String type,
+                                       @RequestParam(required = false) String genre,
+                                       @RequestParam(required = false) Integer page,
+                                       @RequestParam(required = false) Integer size,
+                                       @RequestAttribute(value = "authUser", required = false) UserAccount user) {
+        return catalogService.catalogPage(query, type, genre, page, size, user);
     }
 
     @GetMapping("/catalog/{slug}")

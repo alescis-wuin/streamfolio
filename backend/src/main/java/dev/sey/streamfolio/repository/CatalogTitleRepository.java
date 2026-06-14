@@ -5,8 +5,9 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.jpa.repository.EntityGraph;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.JpaSpecificationExecutor;
 
-public interface CatalogTitleRepository extends JpaRepository<CatalogTitle, Long> {
+public interface CatalogTitleRepository extends JpaRepository<CatalogTitle, Long>, JpaSpecificationExecutor<CatalogTitle> {
     @EntityGraph(attributePaths = {"genres", "videos"})
     Optional<CatalogTitle> findBySlug(String slug);
 
