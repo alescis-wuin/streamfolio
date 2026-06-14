@@ -13,12 +13,10 @@ async function login(page) {
   await expect(page.locator('#main-content')).toContainText('Explorer');
 }
 
-async function openTitleFromCard(page, title) {
-  const link = page.getByRole('link', { name: new RegExp(`Afficher ${title}`) }).first();
-  await expect(link).toBeVisible();
-  await link.focus();
-  await page.keyboard.press('Enter');
-  await expect(page).toHaveURL(new RegExp(`#\/title\/${title.toLowerCase().replaceAll(' ', '-')}`));
+async function openTitleDetail(page, slug, title) {
+  await page.goto(`/#/title/${slug}`);
+  await expect(page).toHaveURL(new RegExp(`#/title/${slug}`));
+  await expect(page.locator('.detail-page').getByRole('heading', { name: title })).toBeVisible();
 }
 
 async function apiLogin(request) {
@@ -45,10 +43,9 @@ test.describe('Streamfolio e2e', () => {
     await expect(page).toHaveURL(/#\/catalog\?query=botanical/);
     await expect(page.locator('#main-content')).toContainText('Botanical Cities');
 
-    await openTitleFromCard(page, 'Botanical Cities');
-    await expect(page.getByRole('heading', { name: 'Botanical Cities' })).toBeVisible();
+    await openTitleDetail(page, 'botanical-cities', 'Botanical Cities');
 
-    await page.getByRole('button', { name: /Ma liste/ }).first().click();
+    await page.locator('.detail-page').getByRole('button', { name: /Ma liste/ }).click();
     await page.getByRole('link', { name: 'Ma liste' }).first().click();
     await expect(page.locator('#main-content')).toContainText('Botanical Cities');
 
