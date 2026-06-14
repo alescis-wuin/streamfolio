@@ -1,6 +1,7 @@
 package dev.sey.streamfolio.streaming;
 
 import dev.sey.streamfolio.common.BadRequestException;
+import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
@@ -98,7 +99,7 @@ public class MediaStorageService {
 
     private Path hlsFile(Long videoId, String filename) {
         Path directory = hlsDirectory(videoId);
-        Path file = directory.resolve(safeHlsFilename(filename)).normalize();
+        Path file = directory.resolve(safeHlsPath(filename)).normalize();
         if (!file.startsWith(directory)) {
             throw new BadRequestException("Chemin HLS invalide.");
         }
@@ -116,11 +117,31 @@ public class MediaStorageService {
         return value;
     }
 
-    private String safeHlsFilename(String filename) {
-        String value = safeFilename(filename);
-        if (!value.endsWith(".ts") && !value.endsWith(".m3u8")) {
-            throw new BadRequestException("Extension HLS invalide.");
+    private Path safeHlsPath(String filename) {
+        if (filename == null || filename.isBlank()) {
+            throw new BadRequestException("Nom de fichier HLS manquant.");
         }
-        return value;
+        String value = filename.trim();
+        if (value.startsWith("/") || value.startsWith("\\") || value.contains("\\")) {
+            throw new BadRequestException("Chemin HLS invalide.");
+        }
+        try {
+            Path path = Path.of(value).normalize();
+            if (path.isAbsolute() || path.startsWith("..")) {
+                throw new BadRequestException("Chemin HLS invalide.");
+            }
+            for (Path part : path) {
+                if (part.toString().isBlank() || "..".equals(part.toString())) {
+                    throw new BadRequestException("Chemin HLS invalide.");
+                }
+            }
+            String filenamePart = path.getFileName().toString();
+            if (!filenamePart.endsWith(".ts") && !filenamePart.endsWith(".m3u8")) {
+                throw new BadRequestException("Extension HLS invalide.");
+            }
+            return path;
+        } catch (InvalidPathException exception) {
+            throw new BadRequestException("Chemin HLS invalide.");
+        }
     }
 }
