@@ -2,9 +2,9 @@
 
 Phase 3.1 : l'application peut lire les médias depuis le classpath ou depuis un dossier externe.
 
-Phase 3.2.A : l'infrastructure FFmpeg peut générer une sortie HLS locale.
+Phase 3.2.A : l'infrastructure FFmpeg peut générer une sortie HLS locale multi-bitrate.
 
-Phase 3.2.B : l'API expose les playlists et segments HLS derrière authentification.
+Phase 3.2.B : l'API expose les playlists et segments HLS derrière authentification, y compris les chemins imbriqués par variante.
 
 Phase 3.2.C : le lecteur frontend choisit HLS quand disponible et retombe sur MP4 si nécessaire.
 
@@ -30,12 +30,25 @@ Transcoder une vidéo de démonstration vers HLS :
 
 Sortie attendue :
 
-`backend/data/media/hls/1/master.m3u8`
+```text
+backend/data/media/hls/1/master.m3u8
+backend/data/media/hls/1/360p/playlist.m3u8
+backend/data/media/hls/1/360p/segment_000.ts
+backend/data/media/hls/1/720p/playlist.m3u8
+backend/data/media/hls/1/1080p/playlist.m3u8
+```
+
+La master playlist référence les variantes :
+
+- `360p` : 640×360 ;
+- `720p` : 1280×720 ;
+- `1080p` : 1920×1080.
 
 Endpoints HLS protégés :
 
 - `/api/videos/1/hls/master.m3u8`
-- `/api/videos/1/hls/segment_000.ts`
+- `/api/videos/1/hls/360p/playlist.m3u8`
+- `/api/videos/1/hls/360p/segment_000.ts`
 
 Le DTO playback expose toujours `streamUrl` pour le fallback MP4. Quand HLS existe, il ajoute `hlsUrl` et `streamingMode=HLS_AVAILABLE`.
 
