@@ -3,6 +3,7 @@ package dev.sey.streamfolio.catalog;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import dev.sey.streamfolio.catalog.dto.CatalogPageResponse;
 import dev.sey.streamfolio.catalog.dto.ProgressUpdateRequest;
 import dev.sey.streamfolio.catalog.dto.TitleCardDto;
 import dev.sey.streamfolio.common.BadRequestException;
@@ -44,6 +45,32 @@ class CatalogServiceIntegrationTest {
             assertThat(card.genres()).contains("Botanique");
             assertThat(card.title().toLowerCase()).contains("botanical");
         });
+    }
+
+    @Test
+    void paginatedCatalogUsesFilteringMetadata() {
+        CatalogPageResponse response = catalogService.catalogPage("botanical", "SERIES", "Botanique", 0, 2, null);
+
+        assertThat(response.items()).isNotEmpty();
+        assertThat(response.items()).hasSizeLessThanOrEqualTo(2);
+        assertThat(response.pagination().number()).isZero();
+        assertThat(response.pagination().size()).isEqualTo(2);
+        assertThat(response.pagination().totalElements()).isGreaterThanOrEqualTo(response.items().size());
+        assertThat(response.items()).allSatisfy(card -> {
+            assertThat(card.type()).isEqualTo(ContentType.SERIES);
+            assertThat(card.genres()).contains("Botanique");
+        });
+    }
+
+    @Test
+    void invalidCatalogPaginationFailsFast() {
+        assertThatThrownBy(() -> catalogService.catalogPage(null, null, null, -1, 10, null))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("page");
+
+        assertThatThrownBy(() -> catalogService.catalogPage(null, null, null, 0, 100, null))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("taille");
     }
 
     @Test
