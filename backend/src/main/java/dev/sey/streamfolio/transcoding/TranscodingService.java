@@ -10,6 +10,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import org.springframework.beans.factory.annotation.Value;
@@ -22,6 +23,7 @@ public class TranscodingService {
         new Variant("720p", 1280, 720, "2800k", 3_200_000),
         new Variant("1080p", 1920, 1080, "5000k", 5_600_000)
     );
+    private static final int THUMBNAIL_COUNT = 6;
 
     private final CatalogService catalogService;
     private final MediaStorageService mediaStorage;
@@ -46,6 +48,10 @@ public class TranscodingService {
     }
 
     public HlsTranscodeResult transcodeToHls(Long videoId, boolean force) {
+        return transcodeToHlsAndThumbnails(videoId, force, ProgressReporter.noop());
+    }
+
+    public HlsTranscodeResult transcodeToHlsAndThumbnails(Long videoId, boolean force, ProgressReporter progress) {
         if (mediaStorage.mode() != MediaStorageMode.LOCAL) {
             throw new BadRequestException("Transcodage HLS disponible uniquement avec le profil local-media.");
         }
@@ -58,20 +64,27 @@ public class TranscodingService {
 
         Path outputDirectory = mediaStorage.hlsDirectory(videoId);
         Path playlist = mediaStorage.hlsMasterPlaylist(videoId);
-        if (Files.isRegularFile(playlist) && !force) {
-            return new HlsTranscodeResult(videoId, false, source, outputDirectory, playlist, "Playlist HLS deja presente.");
+        Path thumbnailManifest = mediaStorage.thumbnailManifest(videoId);
+        if (Files.isRegularFile(playlist) && Files.isRegularFile(thumbnailManifest) && !force) {
+            return new HlsTranscodeResult(videoId, false, source, outputDirectory, playlist, "Sorties HLS et thumbnails deja presentes.");
         }
 
+        progress.report(10, "Preparation des dossiers media.");
         prepareOutputDirectory(outputDirectory);
-        for (Variant variant : VARIANTS) {
+        for (int index = 0; index < VARIANTS.size(); index++) {
+            Variant variant = VARIANTS.get(index);
             Path variantPlaylist = outputDirectory.resolve(variant.name()).resolve("playlist.m3u8");
             prepareVariantDirectory(variantPlaylist.getParent());
+            progress.report(20 + index * 15, "Generation HLS " + variant.name() + ".");
             ffmpeg.runOrThrow(command(source, variant, variantPlaylist), transcodeTimeout);
             validatePlaylist(variantPlaylist, false);
         }
         writeMasterPlaylist(playlist);
         validatePlaylist(playlist, true);
-        return new HlsTranscodeResult(videoId, true, source, outputDirectory, playlist, "Playlist HLS multi-bitrate generee.");
+        progress.report(72, "Generation des thumbnails timeline.");
+        generateTimelineThumbnails(video, source);
+        progress.report(95, "Validation des sorties media.");
+        return new HlsTranscodeResult(videoId, true, source, outputDirectory, playlist, "HLS multi-bitrate et thumbnails generes.");
     }
 
     private void prepareOutputDirectory(Path outputDirectory) {
@@ -107,10 +120,55 @@ public class TranscodingService {
         );
     }
 
+    private List<String> thumbnailCommand(Path source, int second, Path output) {
+        return List.of(
+            ffmpeg.binary(), "-y", "-ss", String.valueOf(second), "-i", source.toString(),
+            "-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1",
+            output.toString()
+        );
+    }
+
     private String scaleFilter(Variant variant) {
         return "scale=w=" + variant.width() + ":h=" + variant.height()
             + ":force_original_aspect_ratio=decrease,pad=w=" + variant.width()
             + ":h=" + variant.height() + ":x=(ow-iw)/2:y=(oh-ih)/2:color=black";
+    }
+
+    private void generateTimelineThumbnails(CatalogVideo video, Path source) {
+        Path directory = mediaStorage.thumbnailDirectory(video.getId());
+        Path manifest = mediaStorage.thumbnailManifest(video.getId());
+        try {
+            Files.createDirectories(directory);
+            cleanDirectory(directory);
+            Files.createDirectories(directory);
+            List<ThumbnailEntry> entries = new ArrayList<>();
+            int duration = Math.max(1, video.getDurationSeconds());
+            int step = Math.max(1, duration / THUMBNAIL_COUNT);
+            for (int index = 0; index < THUMBNAIL_COUNT; index++) {
+                int second = Math.min(Math.max(0, duration - 1), index * step);
+                String filename = "thumb_" + String.format("%03d", index) + ".jpg";
+                Path output = directory.resolve(filename);
+                ffmpeg.runOrThrow(thumbnailCommand(source, second, output), transcodeTimeout);
+                entries.add(new ThumbnailEntry(second, "/api/videos/" + video.getId() + "/thumbnails/" + filename));
+            }
+            Files.writeString(manifest, manifestJson(video.getId(), entries));
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de generer les thumbnails: " + exception.getMessage());
+        }
+    }
+
+    private String manifestJson(Long videoId, List<ThumbnailEntry> entries) {
+        StringBuilder builder = new StringBuilder("{\n  \"videoId\": ").append(videoId).append(",\n  \"items\": [\n");
+        for (int index = 0; index < entries.size(); index++) {
+            ThumbnailEntry entry = entries.get(index);
+            builder.append("    { \"timeSeconds\": ").append(entry.timeSeconds())
+                .append(", \"url\": \"").append(entry.url()).append("\" }");
+            if (index < entries.size() - 1) {
+                builder.append(',');
+            }
+            builder.append('\n');
+        }
+        return builder.append("  ]\n}\n").toString();
     }
 
     private void writeMasterPlaylist(Path playlist) {
@@ -162,6 +220,17 @@ public class TranscodingService {
         }
     }
 
+    public interface ProgressReporter {
+        void report(int progressPercent, String message);
+
+        static ProgressReporter noop() {
+            return (progressPercent, message) -> { };
+        }
+    }
+
     private record Variant(String name, int width, int height, String videoBitrate, int bandwidth) {
+    }
+
+    private record ThumbnailEntry(int timeSeconds, String url) {
     }
 }
