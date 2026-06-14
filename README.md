@@ -24,7 +24,108 @@
 > [!NOTE]
 > Le GIF ci-dessus est une démo longue stockée via Git LFS. Pour un README public, une version plus courte et plus légère pourra être ajoutée dans `docs/screenshots/demo.gif`.
 
-### Visuels existants du catalogue
+### Captures d'écran
+
+#### Desktop
+
+<table>
+  <tr>
+    <td colspan="2">
+      <strong>Accueil — hero et rails principaux</strong><br>
+      <img src="docs/screenshots/desktop/home/home-0.png" alt="Accueil Streamfolio desktop avec hero et rails de contenu" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Accueil — navigation catalogue</strong><br>
+      <img src="docs/screenshots/desktop/home/home-1.png" alt="Accueil Streamfolio desktop avec navigation dans le catalogue" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Accueil — rails étendus</strong><br>
+      <img src="docs/screenshots/desktop/home/home-2.png" alt="Accueil Streamfolio desktop avec rails horizontaux étendus" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Fiche film</strong><br>
+      <img src="docs/screenshots/desktop/home/details/details-movie.png" alt="Fiche détail film Streamfolio" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Lecteur vidéo</strong><br>
+      <img src="docs/screenshots/desktop/home/play/player.png" alt="Lecteur vidéo Streamfolio desktop" width="100%">
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Voir le parcours desktop complet</strong></summary>
+
+<table>
+  <tr>
+    <td width="50%">
+      <strong>Connexion</strong><br>
+      <img src="docs/screenshots/desktop/login.png" alt="Écran de connexion Streamfolio desktop" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Recherche botanical</strong><br>
+      <img src="docs/screenshots/desktop/home/search/search-botanical-0.png" alt="Recherche botanical dans Streamfolio" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Résultats de recherche</strong><br>
+      <img src="docs/screenshots/desktop/home/search/search-botanical-1.png" alt="Résultats de recherche botanical dans Streamfolio" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Fiche série</strong><br>
+      <img src="docs/screenshots/desktop/home/details/details-serie.png" alt="Fiche détail série Streamfolio" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Ma liste</strong><br>
+      <img src="docs/screenshots/desktop/home/list/list.png" alt="Page Ma liste Streamfolio" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Page lecture</strong><br>
+      <img src="docs/screenshots/desktop/home/play/play-page-0.png" alt="Page lecture Streamfolio" width="100%">
+    </td>
+  </tr>
+  <tr>
+    <td width="50%">
+      <strong>Lecture — vue secondaire</strong><br>
+      <img src="docs/screenshots/desktop/home/play/play-page-1.png" alt="Vue secondaire de lecture Streamfolio" width="100%">
+    </td>
+    <td width="50%">
+      <strong>Lecteur isolé</strong><br>
+      <img src="docs/screenshots/desktop/home/play/player.png" alt="Lecteur vidéo isolé Streamfolio" width="100%">
+    </td>
+  </tr>
+</table>
+
+</details>
+
+#### Mobile
+
+<table>
+  <tr>
+    <td width="33%">
+      <strong>Mobile — vue 1</strong><br>
+      <img src="docs/screenshots/mobile/mobile-0.png" alt="Vue mobile Streamfolio 1" width="100%">
+    </td>
+    <td width="33%">
+      <strong>Mobile — vue 2</strong><br>
+      <img src="docs/screenshots/mobile/mobile-1.png" alt="Vue mobile Streamfolio 2" width="100%">
+    </td>
+    <td width="33%">
+      <strong>Mobile — vue 3</strong><br>
+      <img src="docs/screenshots/mobile/mobile-2.png" alt="Vue mobile Streamfolio 3" width="100%">
+    </td>
+  </tr>
+</table>
+
+<details>
+<summary><strong>Voir aussi les affiches SVG du catalogue</strong></summary>
 
 <table>
   <tr>
@@ -65,19 +166,6 @@
   </tr>
 </table>
 
-<details>
-<summary><strong>Captures d'écran prévues</strong></summary>
-
-Les captures applicatives suivantes compléteront le README lorsque les fichiers seront ajoutés dans `docs/screenshots/` :
-
-- [ ] `docs/screenshots/home.png` — accueil après connexion ;
-- [ ] `docs/screenshots/detail.png` — fiche détail ;
-- [ ] `docs/screenshots/player.png` — lecteur vidéo ;
-- [ ] `docs/screenshots/mobile.png` — vue responsive mobile ;
-- [ ] `docs/screenshots/demo.gif` — GIF court optimisé pour README public.
-
-Consignes détaillées : [`docs/screenshots/README.md`](docs/screenshots/README.md).
-
 </details>
 
 ## Objectif
@@ -96,7 +184,7 @@ Le projet privilégie une architecture simple à lancer et à évaluer : un back
 | Vidéo | Lecteur HTML5, sous-titres WebVTT, HTTP Range, fallback MP4 progressif |
 | HLS local | Stockage local, génération HLS via FFmpeg/script, endpoint HLS protégé, fallback MP4 |
 | Qualité | Tests Maven, tests sécurité, tests streaming, smoke tests, CI GitHub Actions |
-| Portfolio | Documentation, captures prévues, GIF, Docker, Git LFS, validation automatisée |
+| Portfolio | Documentation, captures, GIF, Docker, Git LFS, validation automatisée |
 
 ## Stack
 
@@ -279,7 +367,7 @@ Les médias lourds sont suivis avec Git LFS via `.gitattributes`.
 | [`docs/06-stockage-media.md`](docs/06-stockage-media.md) | Mode local, HLS et FFmpeg |
 | [`docs/06-verification.md`](docs/06-verification.md) | Validation locale et CI |
 | [`docs/validation-checklist.md`](docs/validation-checklist.md) | Checklist de passage de phase |
-| [`docs/screenshots/README.md`](docs/screenshots/README.md) | Captures et GIF |
+| [`docs/screenshots/README.md`](docs/screenshots/README.md) | Arborescence des captures et GIF |
 
 ## Limites assumées
 
@@ -301,7 +389,6 @@ Les médias lourds sont suivis avec Git LFS via `.gitattributes`.
 
 ### Court terme
 
-- Ajouter les captures statiques finales dans `docs/screenshots/`.
 - Remplacer le GIF long par un GIF court optimisé pour README public.
 - Stabiliser la phase HLS locale.
 - Découper progressivement `app.js` et `styles.css`.
