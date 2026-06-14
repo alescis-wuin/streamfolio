@@ -21,6 +21,7 @@ public record PlaybackDto(
     String hlsUrl,
     StreamingMode streamingMode,
     String subtitlesUrl,
+    String thumbnailManifestUrl,
     ProgressDto progress
 ) {
 }
