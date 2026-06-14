@@ -32,6 +32,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
+          cache: npm
 
       - name: Install smoke-test dependencies
         run: |
@@ -43,7 +44,7 @@ jobs:
 
       - name: Install Playwright dependencies
         run: |
-          npm install
+          npm ci
           npx playwright install --with-deps chromium
 
       - name: Run Playwright e2e tests
