@@ -29,6 +29,7 @@ import org.springframework.web.multipart.MultipartFile;
 public class AdminMediaService {
     private static final int DEFAULT_PAGE_SIZE = 20;
     private static final int MAX_PAGE_SIZE = 100;
+    private static final String DEFAULT_IMAGE_PATH = "/assets/posters-clean/aurora-drift.svg?v6";
 
     private final CatalogTitleRepository titles;
     private final CatalogVideoRepository videos;
@@ -86,24 +87,26 @@ public class AdminMediaService {
                                 MultipartFile subtitles,
                                 MultipartFile poster,
                                 MultipartFile backdrop) {
-        StoredMediaFile storedMedia = storage.storeVideo(media);
-        StoredMediaFile storedSubtitles = storage.storeSubtitle(subtitles);
-        StoredMediaFile storedPoster = storage.storePoster(poster);
-        StoredMediaFile storedBackdrop = storage.storeBackdrop(backdrop);
-
         String cleanTitle = requiredText(title, "Titre manquant.");
+        StoredMediaFile storedMedia = storage.storeVideo(media);
+        StoredMediaFile storedSubtitles = storage.storeOptionalSubtitle(subtitles);
+        StoredMediaFile storedPoster = isMissing(poster) ? null : storage.storePoster(poster);
+        StoredMediaFile storedBackdrop = isMissing(backdrop) ? null : storage.storeBackdrop(backdrop);
+
         int cleanDuration = durationFromUpload(durationSeconds, storedMedia);
+        String posterPath = storedPoster == null ? DEFAULT_IMAGE_PATH : storedPoster.publicPath();
+        String backdropPath = storedBackdrop == null ? posterPath : storedBackdrop.publicPath();
         CatalogTitle catalogTitle = new CatalogTitle(
             uniqueSlug(cleanTitle, null),
             cleanTitle,
             ContentType.MOVIE,
             safeYear(releaseYear),
-            textOrDefault(maturityRating, "TV-PG"),
-            positiveOrDefault(runtimeMinutes, Math.max(1, cleanDuration / 60)),
-            textOrDefault(tagline, "Nouveau media ajoute depuis l'administration."),
-            requiredText(synopsis, "Description manquante."),
-            storedPoster.publicPath(),
-            storedBackdrop.publicPath(),
+            textOrDefault(maturityRating, "Tous publics"),
+            positiveOrDefault(runtimeMinutes, Math.max(1, (int) Math.ceil(cleanDuration / 60.0))),
+            textOrDefault(tagline, "Nouveau média ajouté depuis l'administration."),
+            textOrDefault(synopsis, "Description non renseignée."),
+            posterPath,
+            backdropPath,
             (int) Math.min(Integer.MAX_VALUE, titles.count() + 1)
         );
         parseGenres(genres).forEach(catalogTitle::addGenre);
@@ -389,5 +392,9 @@ public class AdminMediaService {
             .replaceAll("\\p{M}+", "")
             .toLowerCase(Locale.ROOT)
             .trim();
+    }
+
+    private boolean isMissing(MultipartFile file) {
+        return file == null || file.isEmpty() || file.getSize() <= 0;
     }
 }
