@@ -9,12 +9,24 @@ const VIDEO_ACCEPT = [
 ].join(',');
 const FORMAT_HINT = 'MP4, MOV, WMV, MKV, WebM/HTML5, AVI, FLV, F4V, SWF, AVCHD, MPEG-2, MPEG-TS, OGV, 3GP, MXF, DV, RealMedia, MOD/TOD, etc.';
 const DEFAULT_YEAR = new Date().getFullYear();
+const JOBS_VIEW = 'jobs';
+const JOBS_POLL_INTERVAL_MS = 2000;
+const RECENT_JOB_WINDOW_MS = 24 * 60 * 60 * 1000;
+const RECENT_JOB_FALLBACK_LIMIT = 5;
+
+let jobsApi = null;
+let jobsPollTimer = null;
+let jobsRefreshInFlight = false;
 
 export async function renderMediaAdmin(api) {
   const params = adminParams();
-  const [videoPage, jobs, assets] = await Promise.all([
+  if (params.get('view') === JOBS_VIEW) {
+    return renderMediaAdminJobs(api);
+  }
+
+  stopJobsPolling();
+  const [videoPage, assets] = await Promise.all([
     api(`/api/admin/videos?${params.toString()}`).catch(() => ({ items: [], pagination: { number: 0, size: 20, totalElements: 0, totalPages: 0 } })),
-    api('/api/admin/media/jobs').catch(() => []),
     api('/api/admin/media/assets').catch(() => []),
   ]);
   return `
@@ -22,7 +34,7 @@ export async function renderMediaAdmin(api) {
       <div class='admin-hero'>
         <p class='eyebrow'>Pipeline média</p>
         <h1 id='admin-title'>Administration vidéo</h1>
-        <p class='lead'>Gère le catalogue, les fichiers locaux, les assets, les jobs FFmpeg et les regroupements film/série.</p>
+        <p class='lead'>Gère le catalogue, les fichiers locaux, les assets et les regroupements film/série.</p>
         ${filtersView(params)}
       </div>
       <div class='admin-grid admin-grid-wide'>
@@ -31,9 +43,10 @@ export async function renderMediaAdmin(api) {
           ${videoPage.items?.length ? `<div class='admin-table'>${videoPage.items.map(videoView).join('')}</div>${paginationView(videoPage.pagination, params)}` : `<p class='muted'>Aucune vidéo ne correspond aux critères.</p>`}
         </section>
         <aside class='admin-panel'>
-          <h2>Jobs récents</h2>
-          ${jobs.length ? `<div class='admin-table'>${jobs.map(jobView).join('')}</div>` : `<p class='muted'>Aucun job pour le moment.</p>`}
-          <h2 class='admin-subtitle'>Assets média</h2>
+          <div class='admin-actions'>
+            <h2>Assets média</h2>
+            <a class='btn ghost' href='#/admin?view=jobs'>Voir les jobs</a>
+          </div>
           ${assets.length ? `<div class='admin-table compact'>${assets.map(assetView).join('')}</div>` : `<p class='muted'>Aucun asset enregistré.</p>`}
         </aside>
       </div>
@@ -42,6 +55,7 @@ export async function renderMediaAdmin(api) {
 }
 
 export async function renderMediaAdminUpload() {
+  stopJobsPolling();
   return `
     <section class='admin-page admin-upload-page' aria-labelledby='admin-upload-title'>
       <div class='admin-hero'>
@@ -50,6 +64,7 @@ export async function renderMediaAdminUpload() {
         <p class='lead'>Crée une entrée de catalogue depuis un fichier vidéo. Seuls le fichier vidéo et le titre sont obligatoires.</p>
         <div class='admin-actions'>
           <a class='btn ghost' href='#/admin'>Retour à l’administration</a>
+          <a class='btn ghost' href='#/admin?view=jobs'>Jobs</a>
         </div>
       </div>
       ${uploadView()}
@@ -119,7 +134,8 @@ export async function handleMediaAdminSubmit(event, api, route) {
     const videoId = Number(data.get('videoId')) || 1;
     const force = data.get('force') === 'on';
     await api(`/api/admin/media/videos/${videoId}/transcode`, { method: 'POST', body: JSON.stringify({ force }) });
-    setTimeout(route, 350);
+    location.hash = '#/admin?view=jobs';
+    route();
     return true;
   }
 
@@ -138,6 +154,13 @@ export async function handleMediaAdminClick(event, route) {
   if (capture) {
     event.preventDefault();
     await captureThumbnail(capture);
+    return true;
+  }
+
+  const refreshJobs = event.target.closest('[data-refresh-jobs]');
+  if (refreshJobs) {
+    event.preventDefault();
+    await refreshJobsPage(true);
     return true;
   }
 
@@ -176,6 +199,148 @@ export function handleMediaAdminInput(event) {
   return false;
 }
 
+async function renderMediaAdminJobs(api) {
+  jobsApi = api;
+  let jobs = [];
+  let status = 'Synchronisation initiale impossible.';
+  try {
+    jobs = await api('/api/admin/media/jobs');
+    status = `Dernière synchronisation : ${formatDateTime(new Date().toISOString())}`;
+  } catch {
+    jobs = [];
+  }
+  scheduleJobsPolling(api);
+  return `
+    <section class='admin-page admin-jobs-page' data-admin-jobs-page aria-labelledby='admin-jobs-title'>
+      <div class='admin-hero'>
+        <p class='eyebrow'>Pipeline média</p>
+        <h1 id='admin-jobs-title'>Jobs de transcodage</h1>
+        <p class='lead'>Suit les jobs FFmpeg en cours, récents et passés sans rechargement manuel.</p>
+        <div class='admin-actions'>
+          <a class='btn ghost' href='#/admin'>Vidéos</a>
+          <a class='btn ghost' href='#/admin/upload'>Upload</a>
+          <button class='btn ghost' type='button' data-refresh-jobs>Actualiser maintenant</button>
+          <span class='muted' data-jobs-status>${escapeHtml(status)}</span>
+        </div>
+      </div>
+      ${jobsGroupsView(jobs)}
+    </section>
+  `;
+}
+
+function scheduleJobsPolling(api) {
+  jobsApi = api;
+  window.setTimeout(() => {
+    if (!document.querySelector('[data-admin-jobs-page]')) return;
+    startJobsPolling();
+    refreshJobsPage(false);
+  }, 0);
+}
+
+function startJobsPolling() {
+  if (jobsPollTimer) return;
+  jobsPollTimer = window.setInterval(() => refreshJobsPage(false), JOBS_POLL_INTERVAL_MS);
+}
+
+function stopJobsPolling() {
+  if (jobsPollTimer) {
+    window.clearInterval(jobsPollTimer);
+    jobsPollTimer = null;
+  }
+}
+
+async function refreshJobsPage(force) {
+  const page = document.querySelector('[data-admin-jobs-page]');
+  if (!page || !jobsApi) {
+    stopJobsPolling();
+    return;
+  }
+  if (jobsRefreshInFlight) return;
+  if (document.hidden && !force) return;
+  jobsRefreshInFlight = true;
+  const status = page.querySelector('[data-jobs-status]');
+  if (status && force) status.textContent = 'Synchronisation…';
+  try {
+    const jobs = await jobsApi('/api/admin/media/jobs');
+    updateJobGroups(page, jobs);
+    if (status) status.textContent = `Dernière synchronisation : ${formatDateTime(new Date().toISOString())}`;
+  } catch (error) {
+    if (status) status.textContent = error?.message || 'Synchronisation impossible.';
+  } finally {
+    jobsRefreshInFlight = false;
+  }
+}
+
+function jobsGroupsView(jobs) {
+  const groups = groupJobs(jobs);
+  return `
+    <div class='admin-grid admin-grid-wide'>
+      ${jobGroupView('active', 'En cours', 'Jobs en attente ou en exécution.', groups.active)}
+      ${jobGroupView('recent', 'Récents', 'Jobs terminés ou échoués dans les dernières 24 h.', groups.recent)}
+    </div>
+    ${jobGroupView('past', 'Passés', 'Historique plus ancien retourné par le backend.', groups.past)}
+  `;
+}
+
+function jobGroupView(name, title, description, jobs) {
+  return `
+    <section class='admin-panel' data-job-panel='${name}'>
+      <div class='admin-actions'>
+        <div>
+          <h2>${escapeHtml(title)} <span class='status-pill'>${jobs.length}</span></h2>
+          <p class='muted'>${escapeHtml(description)}</p>
+        </div>
+      </div>
+      <div class='admin-table' data-job-group='${name}'>${jobs.length ? jobs.map(jobView).join('') : emptyJobsView(name)}</div>
+    </section>
+  `;
+}
+
+function updateJobGroups(page, jobs) {
+  const groups = groupJobs(jobs);
+  updateJobGroup(page, 'active', groups.active);
+  updateJobGroup(page, 'recent', groups.recent);
+  updateJobGroup(page, 'past', groups.past);
+}
+
+function updateJobGroup(page, name, jobs) {
+  const group = page.querySelector(`[data-job-group='${name}']`);
+  const panel = page.querySelector(`[data-job-panel='${name}']`);
+  if (!group || !panel) return;
+  group.innerHTML = jobs.length ? jobs.map(jobView).join('') : emptyJobsView(name);
+  const counter = panel.querySelector('.status-pill');
+  if (counter) counter.textContent = String(jobs.length);
+}
+
+function groupJobs(jobs) {
+  const sorted = [...(jobs || [])].sort((a, b) => jobTimestamp(b) - jobTimestamp(a));
+  const active = sorted.filter(isActiveJob);
+  const terminal = sorted.filter((job) => !isActiveJob(job));
+  const recentThreshold = Date.now() - RECENT_JOB_WINDOW_MS;
+  let recent = terminal.filter((job) => jobTimestamp(job) >= recentThreshold);
+  if (!recent.length && terminal.length) recent = terminal.slice(0, Math.min(RECENT_JOB_FALLBACK_LIMIT, terminal.length));
+  const recentIds = new Set(recent.map((job) => job.id));
+  const past = terminal.filter((job) => !recentIds.has(job.id));
+  return { active, recent, past };
+}
+
+function isActiveJob(job) {
+  return ['PENDING', 'RUNNING'].includes(String(job?.status || '').toUpperCase());
+}
+
+function emptyJobsView(name) {
+  const labels = {
+    active: 'Aucun job en cours.',
+    recent: 'Aucun job terminé récemment.',
+    past: 'Aucun job passé dans la fenêtre retournée par le backend.',
+  };
+  return `<p class='muted'>${escapeHtml(labels[name] || 'Aucun job.')}</p>`;
+}
+
+function jobTimestamp(job) {
+  return Date.parse(job?.finishedAt || job?.startedAt || job?.requestedAt || '') || 0;
+}
+
 function adminParams() {
   const [, query = ''] = (location.hash || '').split('?');
   const params = new URLSearchParams(query);
@@ -196,6 +361,7 @@ function filtersView(params) {
       <button class='btn primary' type='submit'>Filtrer</button>
       <a class='btn ghost' href='#/admin'>Réinitialiser</a>
       <a class='btn primary admin-upload-link' href='#/admin/upload'>Upload</a>
+      <a class='btn ghost' href='#/admin?view=jobs'>Jobs</a>
     </form>
   `;
 }
@@ -522,16 +688,41 @@ function paginationView(pagination, params) {
 
 function pageHref(params, page) {
   const next = new URLSearchParams(params);
+  next.delete('view');
   next.set('page', String(page));
   return `#/admin?${next.toString()}`;
 }
 
 function jobView(job) {
-  return `<article class='admin-row'><div><strong>#${job.id} · ${escapeHtml(job.title)} — ${escapeHtml(job.videoTitle)}</strong><p>${escapeHtml(job.message || '')}</p>${progressBar(job.progressPercent || 0, 'Progression ' + (job.progressPercent || 0) + '%')}</div><span class='status-pill status-${String(job.status || '').toLowerCase()}'>${escapeHtml(job.status)}</span></article>`;
+  const status = String(job.status || '').toLowerCase();
+  const percent = Math.max(0, Math.min(100, Number(job.progressPercent) || 0));
+  const force = job.force ? 'Forcé' : 'Normal';
+  const message = job.message ? `<p>${escapeHtml(job.message)}</p>` : '';
+  const dates = [
+    `Demandé ${formatDateTime(job.requestedAt)}`,
+    job.startedAt ? `Démarré ${formatDateTime(job.startedAt)}` : null,
+    job.finishedAt ? `Terminé ${formatDateTime(job.finishedAt)}` : null,
+    force,
+  ].filter(Boolean).join(' · ');
+  return `<article class='admin-row admin-job-row' data-job-id='${job.id}'><div><strong>#${job.id} · ${escapeHtml(job.title)} — ${escapeHtml(job.videoTitle)}</strong><p>${escapeHtml(dates)}</p>${message}${progressBar(percent, 'Progression ' + percent + '%')}</div><span class='status-pill status-${status}'>${escapeHtml(job.status)}</span></article>`;
 }
 
 function assetView(asset) {
   return `<article class='admin-row'><div><strong>${escapeHtml(asset.title)} — ${escapeHtml(asset.videoTitle)}</strong><p>${escapeHtml(asset.originalFilename)} · ${escapeHtml(asset.thumbnailManifestPath || 'pas de thumbnails')}</p></div><span class='status-pill status-${String(asset.status || '').toLowerCase()}'>${escapeHtml(asset.status)}</span></article>`;
+}
+
+function formatDateTime(value) {
+  if (!value) return '—';
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return '—';
+  return new Intl.DateTimeFormat('fr-FR', {
+    day: '2-digit',
+    month: '2-digit',
+    year: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  }).format(date);
 }
 
 function formObject(form) {
