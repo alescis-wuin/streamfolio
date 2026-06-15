@@ -50,6 +50,19 @@ class MediaStorageServiceTest {
     }
 
     @Test
+    void localModeResolvesThumbnailManifestAndImages() throws IOException {
+        Files.createDirectories(tempDir.resolve("thumbnails/1"));
+        Files.writeString(tempDir.resolve("thumbnails/1/manifest.json"), "{}");
+        Files.writeString(tempDir.resolve("thumbnails/1/thumb_000.jpg"), "fake jpg");
+
+        MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
+
+        assertThat(storage.thumbnail(1L, "manifest.json").exists()).isTrue();
+        assertThat(storage.thumbnail(1L, "thumb_000.jpg").exists()).isTrue();
+        assertThat(storage.thumbnailManifestExists(1L)).isTrue();
+    }
+
+    @Test
     void rejectsUnsafeFilenames() {
         MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
 
@@ -68,6 +81,18 @@ class MediaStorageServiceTest {
         assertThatThrownBy(() -> storage.hlsSegment(1L, "720p/segment.txt"))
             .isInstanceOf(BadRequestException.class)
             .hasMessageContaining("Extension HLS invalide");
+    }
+
+    @Test
+    void rejectsUnsafeThumbnailPaths() {
+        MediaStorageService storage = new MediaStorageService("local", tempDir.toString());
+
+        assertThatThrownBy(() -> storage.thumbnail(1L, "../thumb.jpg"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("invalide");
+        assertThatThrownBy(() -> storage.thumbnail(1L, "thumb.png"))
+            .isInstanceOf(BadRequestException.class)
+            .hasMessageContaining("Extension thumbnail invalide");
     }
 
     @Test

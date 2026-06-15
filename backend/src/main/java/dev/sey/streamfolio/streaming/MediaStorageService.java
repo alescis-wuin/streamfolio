@@ -15,7 +15,9 @@ public class MediaStorageService {
     private static final String LOCAL_ORIGINALS_DIR = "originals";
     private static final String LOCAL_SUBTITLES_DIR = "subtitles";
     private static final String LOCAL_HLS_DIR = "hls";
+    private static final String LOCAL_THUMBNAILS_DIR = "thumbnails";
     private static final String HLS_MASTER_PLAYLIST = "master.m3u8";
+    private static final String THUMBNAIL_MANIFEST = "manifest.json";
 
     private final MediaStorageMode mode;
     private final Path root;
@@ -48,6 +50,10 @@ public class MediaStorageService {
         return new FileSystemResource(hlsFile(videoId, filename));
     }
 
+    public Resource thumbnail(Long videoId, String filename) {
+        return new FileSystemResource(thumbnailFile(videoId, filename));
+    }
+
     public Path localOriginalPath(String filename) {
         return localPath(LOCAL_ORIGINALS_DIR, filename);
     }
@@ -57,15 +63,7 @@ public class MediaStorageService {
     }
 
     public Path hlsDirectory(Long videoId) {
-        if (videoId == null || videoId <= 0) {
-            throw new BadRequestException("Identifiant vidéo invalide.");
-        }
-        Path hlsRoot = root.resolve(LOCAL_HLS_DIR).normalize();
-        Path directory = hlsRoot.resolve(videoId.toString()).normalize();
-        if (!directory.startsWith(hlsRoot)) {
-            throw new BadRequestException("Chemin HLS invalide.");
-        }
-        return directory;
+        return videoScopedDirectory(videoId, LOCAL_HLS_DIR, "Chemin HLS invalide.");
     }
 
     public Path hlsMasterPlaylist(Long videoId) {
@@ -74,6 +72,18 @@ public class MediaStorageService {
 
     public boolean hlsMasterPlaylistExists(Long videoId) {
         return hlsPlaylist(videoId).exists() && hlsPlaylist(videoId).isReadable();
+    }
+
+    public Path thumbnailDirectory(Long videoId) {
+        return videoScopedDirectory(videoId, LOCAL_THUMBNAILS_DIR, "Chemin thumbnail invalide.");
+    }
+
+    public Path thumbnailManifest(Long videoId) {
+        return thumbnailDirectory(videoId).resolve(THUMBNAIL_MANIFEST);
+    }
+
+    public boolean thumbnailManifestExists(Long videoId) {
+        return thumbnail(videoId, THUMBNAIL_MANIFEST).exists() && thumbnail(videoId, THUMBNAIL_MANIFEST).isReadable();
     }
 
     public MediaStorageMode mode() {
@@ -99,11 +109,32 @@ public class MediaStorageService {
 
     private Path hlsFile(Long videoId, String filename) {
         Path directory = hlsDirectory(videoId);
-        Path file = directory.resolve(safeHlsPath(filename)).normalize();
+        Path file = directory.resolve(safeNestedPath(filename, ".ts", ".m3u8", "Chemin HLS invalide.", "Extension HLS invalide.")).normalize();
         if (!file.startsWith(directory)) {
             throw new BadRequestException("Chemin HLS invalide.");
         }
         return file;
+    }
+
+    private Path thumbnailFile(Long videoId, String filename) {
+        Path directory = thumbnailDirectory(videoId);
+        Path file = directory.resolve(safeNestedPath(filename, ".jpg", ".json", "Chemin thumbnail invalide.", "Extension thumbnail invalide.")).normalize();
+        if (!file.startsWith(directory)) {
+            throw new BadRequestException("Chemin thumbnail invalide.");
+        }
+        return file;
+    }
+
+    private Path videoScopedDirectory(Long videoId, String directory, String message) {
+        if (videoId == null || videoId <= 0) {
+            throw new BadRequestException("Identifiant vidéo invalide.");
+        }
+        Path scopedRoot = root.resolve(directory).normalize();
+        Path target = scopedRoot.resolve(videoId.toString()).normalize();
+        if (!target.startsWith(scopedRoot)) {
+            throw new BadRequestException(message);
+        }
+        return target;
     }
 
     private String safeFilename(String filename) {
@@ -117,31 +148,31 @@ public class MediaStorageService {
         return value;
     }
 
-    private Path safeHlsPath(String filename) {
+    private Path safeNestedPath(String filename, String extensionA, String extensionB, String pathMessage, String extensionMessage) {
         if (filename == null || filename.isBlank()) {
-            throw new BadRequestException("Nom de fichier HLS manquant.");
+            throw new BadRequestException("Nom de fichier manquant.");
         }
         String value = filename.trim();
         if (value.startsWith("/") || value.startsWith("\\") || value.contains("\\") || value.contains("..")) {
-            throw new BadRequestException("Chemin HLS invalide.");
+            throw new BadRequestException(pathMessage);
         }
         try {
             Path path = Path.of(value).normalize();
             if (path.isAbsolute() || path.startsWith("..") || path.getFileName() == null) {
-                throw new BadRequestException("Chemin HLS invalide.");
+                throw new BadRequestException(pathMessage);
             }
             for (Path part : path) {
                 if (part.toString().isBlank() || "..".equals(part.toString())) {
-                    throw new BadRequestException("Chemin HLS invalide.");
+                    throw new BadRequestException(pathMessage);
                 }
             }
             String filenamePart = path.getFileName().toString();
-            if (!filenamePart.endsWith(".ts") && !filenamePart.endsWith(".m3u8")) {
-                throw new BadRequestException("Extension HLS invalide.");
+            if (!filenamePart.endsWith(extensionA) && !filenamePart.endsWith(extensionB)) {
+                throw new BadRequestException(extensionMessage);
             }
             return path;
         } catch (InvalidPathException exception) {
-            throw new BadRequestException("Chemin HLS invalide.");
+            throw new BadRequestException(pathMessage);
         }
     }
 }

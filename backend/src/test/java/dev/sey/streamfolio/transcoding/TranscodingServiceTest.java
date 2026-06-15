@@ -32,6 +32,7 @@ class TranscodingServiceTest {
     void setUp() throws IOException {
         Files.createDirectories(tempDir.resolve("originals"));
         Files.createDirectories(tempDir.resolve("hls"));
+        Files.createDirectories(tempDir.resolve("thumbnails"));
         Files.writeString(tempDir.resolve("originals/aurora-drift.mp4"), "demo video");
         transcodingService = new TranscodingService(
             catalogService,
@@ -43,7 +44,7 @@ class TranscodingServiceTest {
     }
 
     @Test
-    void transcodesLocalOriginalToMultiBitrateHlsPlaylist() {
+    void transcodesLocalOriginalToMultiBitrateHlsPlaylistAndTimelineThumbnails() {
         when(catalogService.findVideo(1L)).thenReturn(video());
 
         HlsTranscodeResult result = transcodingService.transcodeToHls(1L, true);
@@ -55,10 +56,13 @@ class TranscodingServiceTest {
         assertThat(result.outputDirectory().resolve("1080p/segment_000.ts")).exists();
         assertThat(read(result.playlist()))
             .contains("EXTM3U", "EXT-X-STREAM-INF", "360p/playlist.m3u8", "720p/playlist.m3u8", "1080p/playlist.m3u8");
+        assertThat(tempDir.resolve("thumbnails/1/manifest.json")).exists();
+        assertThat(tempDir.resolve("thumbnails/1/thumb_000.jpg")).exists();
+        assertThat(read(tempDir.resolve("thumbnails/1/manifest.json"))).contains("timeSeconds", "/api/videos/1/thumbnails/thumb_000.jpg");
     }
 
     @Test
-    void skipsExistingHlsPlaylistWhenForceIsFalse() {
+    void skipsExistingHlsAndThumbnailsWhenForceIsFalse() {
         when(catalogService.findVideo(1L)).thenReturn(video());
 
         HlsTranscodeResult first = transcodingService.transcodeToHls(1L, true);
@@ -66,7 +70,7 @@ class TranscodingServiceTest {
 
         assertThat(first.generated()).isTrue();
         assertThat(second.generated()).isFalse();
-        assertThat(second.message()).contains("presente");
+        assertThat(second.message()).contains("presentes");
     }
 
     private CatalogVideo video() {
@@ -88,10 +92,14 @@ class TranscodingServiceTest {
 
         @Override
         public CommandResult runOrThrow(List<String> command, Duration timeout) {
-            Path playlist = Path.of(command.get(command.size() - 1));
-            Path outputDirectory = playlist.getParent();
+            Path output = Path.of(command.get(command.size() - 1));
+            Path outputDirectory = output.getParent();
             try {
                 Files.createDirectories(outputDirectory);
+                if (output.toString().endsWith(".jpg")) {
+                    Files.writeString(output, "fake jpg");
+                    return new CommandResult(0, "ok", false);
+                }
                 String mark = Character.toString((char) 35);
                 String content = mark + "EXTM3U\n"
                     + mark + "EXT-X-VERSION:3\n"
@@ -99,7 +107,7 @@ class TranscodingServiceTest {
                     + mark + "EXTINF:1.0,\n"
                     + "segment_000.ts\n"
                     + mark + "EXT-X-ENDLIST\n";
-                Files.writeString(playlist, content);
+                Files.writeString(output, content);
                 Files.writeString(outputDirectory.resolve("segment_000.ts"), "fake segment");
             } catch (IOException exception) {
                 throw new IllegalStateException(exception);

@@ -1,0 +1,17 @@
+spring:
+  datasource:
+    url: ${STREAMFOLIO_POSTGRES_URL:jdbc:postgresql://localhost:5432/streamfolio}
+    driver-class-name: org.postgresql.Driver
+    username: ${STREAMFOLIO_POSTGRES_USER:streamfolio}
+    password: ${STREAMFOLIO_POSTGRES_PASSWORD:change-me}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        format_sql: true
+
+streamfolio:
+  media:
+    storage: local
+    root: ${STREAMFOLIO_MEDIA_ROOT:./data/media}
