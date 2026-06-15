@@ -56,8 +56,20 @@ public class CatalogVideo {
         this.subtitleFilename = subtitleFilename;
     }
 
-    void setTitle(CatalogTitle title) {
+    public void setTitle(CatalogTitle title) {
         this.title = title;
+    }
+
+    public void updateMetadata(int seasonNumber, int episodeNumber, String label, String videoTitle, int durationSeconds) {
+        this.seasonNumber = seasonNumber;
+        this.episodeNumber = episodeNumber;
+        this.label = label;
+        this.videoTitle = videoTitle;
+        this.durationSeconds = durationSeconds;
+    }
+
+    public void updateSubtitleFilename(String subtitleFilename) {
+        this.subtitleFilename = subtitleFilename;
     }
 
     public Long getId() {

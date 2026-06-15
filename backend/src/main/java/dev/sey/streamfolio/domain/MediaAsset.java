@@ -27,6 +27,18 @@ public class MediaAsset {
     @Column(nullable = false, length = 220)
     private String originalFilename;
 
+    @Column(nullable = false, length = 220)
+    private String originalUploadName;
+
+    @Column(length = 64)
+    private String contentSha256;
+
+    @Column(length = 120)
+    private String contentType;
+
+    @Column(nullable = false)
+    private long sizeBytes;
+
     @Column(length = 220)
     private String hlsMasterPath;
 
@@ -44,8 +56,24 @@ public class MediaAsset {
     }
 
     public MediaAsset(CatalogVideo video) {
+        this(video, video.getAssetFilename(), video.getAssetFilename(), null, null, 0);
+    }
+
+    public MediaAsset(CatalogVideo video, String originalFilename, String originalUploadName,
+                      String contentSha256, String contentType, long sizeBytes) {
         this.video = video;
-        this.originalFilename = video.getAssetFilename();
+        markRegistered(originalFilename, originalUploadName, contentSha256, contentType, sizeBytes);
+    }
+
+    public void markRegistered(String originalFilename, String originalUploadName,
+                               String contentSha256, String contentType, long sizeBytes) {
+        this.originalFilename = originalFilename;
+        this.originalUploadName = originalUploadName;
+        this.contentSha256 = contentSha256;
+        this.contentType = contentType;
+        this.sizeBytes = sizeBytes;
+        this.status = MediaAssetStatus.REGISTERED;
+        this.updatedAt = Instant.now();
     }
 
     public void markReady(String hlsMasterPath, String thumbnailManifestPath) {
@@ -75,6 +103,22 @@ public class MediaAsset {
 
     public String getOriginalFilename() {
         return originalFilename;
+    }
+
+    public String getOriginalUploadName() {
+        return originalUploadName;
+    }
+
+    public String getContentSha256() {
+        return contentSha256;
+    }
+
+    public String getContentType() {
+        return contentType;
+    }
+
+    public long getSizeBytes() {
+        return sizeBytes;
     }
 
     public String getHlsMasterPath() {

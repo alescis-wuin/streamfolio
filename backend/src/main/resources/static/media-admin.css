@@ -27,16 +27,30 @@
   display: grid;
   gap: 0.35rem;
   color: var(--muted);
+  font-size: 0.86rem;
 }
 
-.admin-form input[type='number'] {
+.admin-form input,
+.admin-form select,
+.admin-form textarea {
   min-height: 2.7rem;
-  width: 9rem;
+  min-width: 10rem;
   border: 1px solid var(--line);
   border-radius: 12px;
   padding: 0 0.75rem;
   color: var(--text);
   background: rgba(255, 255, 255, 0.075);
+}
+
+.admin-form textarea {
+  min-width: min(34rem, 80vw);
+  min-height: 5rem;
+  padding-top: 0.75rem;
+  resize: vertical;
+}
+
+.admin-form input[type='file'] {
+  padding: 0.62rem 0.75rem;
 }
 
 .admin-form .checkline {
@@ -45,14 +59,32 @@
   min-height: 2.7rem;
 }
 
+.admin-filter-form,
+.admin-upload-form,
+.admin-inline-form {
+  align-items: end;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: clamp(1rem, 2vw, 1.5rem);
 }
 
+.admin-grid-wide {
+  grid-template-columns: minmax(0, 1.7fr) minmax(20rem, 0.8fr);
+}
+
 .admin-panel {
   padding: clamp(1rem, 2vw, 1.4rem);
+}
+
+.admin-panel-main {
+  min-width: 0;
+}
+
+.admin-subtitle {
+  margin-top: 1.35rem;
 }
 
 .admin-table {
@@ -60,21 +92,63 @@
   gap: 0.75rem;
 }
 
+.admin-table.compact {
+  gap: 0.55rem;
+}
+
 .admin-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto;
   gap: 1rem;
-  align-items: center;
+  align-items: start;
   padding: 0.85rem;
   border: 1px solid var(--line-soft);
   border-radius: var(--radius-md);
   background: rgba(255, 255, 255, 0.045);
 }
 
+.admin-video-row details {
+  margin-top: 0.8rem;
+}
+
+.admin-video-row summary {
+  cursor: pointer;
+  color: var(--text);
+  font-weight: 800;
+}
+
 .admin-row p {
   margin: 0.35rem 0 0;
   color: var(--muted);
   font-size: 0.9rem;
+  overflow-wrap: anywhere;
+}
+
+.admin-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+  align-items: center;
+  margin-top: 0.75rem;
+}
+
+.admin-actions form {
+  display: inline-flex;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+.admin-pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0.8rem;
+  margin-top: 1rem;
+}
+
+.admin-pagination .disabled {
+  pointer-events: none;
+  opacity: 0.45;
 }
 
 .status-pill {
@@ -100,7 +174,8 @@
 }
 
 .status-failed,
-.status-missing {
+.status-missing,
+.status-no_asset {
   color: #2d0b0b;
   background: var(--danger);
 }
@@ -139,10 +214,16 @@
 }
 
 @media (max-width: 920px) {
-  .admin-grid {
+  .admin-grid,
+  .admin-grid-wide {
     grid-template-columns: 1fr;
   }
   .admin-row {
     grid-template-columns: 1fr;
+  }
+  .admin-form input,
+  .admin-form select,
+  .admin-form textarea {
+    min-width: 100%;
   }
 }

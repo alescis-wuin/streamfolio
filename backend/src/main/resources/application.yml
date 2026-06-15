@@ -6,6 +6,10 @@ server:
 spring:
   application:
     name: streamfolio-v1
+  servlet:
+    multipart:
+      max-file-size: 4GB
+      max-request-size: 5GB
   datasource:
     # Base volatile pour une V1 de démonstration : évite les conflits de schéma H2/Hibernate
     # entre deux lancements locaux. Voir README pour l'option persistante.
@@ -42,6 +46,11 @@ streamfolio:
   media:
     storage: classpath
     root: ./data/media
+  admin:
+    upload:
+      max-video-size: 4GB
+      max-subtitle-size: 2MB
+      max-image-size: 10MB
   ffmpeg:
     binary: ${STREAMFOLIO_FFMPEG_BINARY:ffmpeg}
     probe-timeout: PT5S
