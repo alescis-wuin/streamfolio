@@ -82,7 +82,7 @@ public class TranscodingService {
         writeMasterPlaylist(playlist);
         validatePlaylist(playlist, true);
         progress.report(72, "Generation des thumbnails timeline.");
-        generateTimelineThumbnails(video, source);
+        generateTimelineThumbnails(videoId, video, source);
         progress.report(95, "Validation des sorties media.");
         return new HlsTranscodeResult(videoId, true, source, outputDirectory, playlist, "HLS multi-bitrate et thumbnails generes.");
     }
@@ -134,9 +134,9 @@ public class TranscodingService {
             + ":h=" + variant.height() + ":x=(ow-iw)/2:y=(oh-ih)/2:color=black";
     }
 
-    private void generateTimelineThumbnails(CatalogVideo video, Path source) {
-        Path directory = mediaStorage.thumbnailDirectory(video.getId());
-        Path manifest = mediaStorage.thumbnailManifest(video.getId());
+    private void generateTimelineThumbnails(Long videoId, CatalogVideo video, Path source) {
+        Path directory = mediaStorage.thumbnailDirectory(videoId);
+        Path manifest = mediaStorage.thumbnailManifest(videoId);
         try {
             Files.createDirectories(directory);
             cleanDirectory(directory);
@@ -149,9 +149,9 @@ public class TranscodingService {
                 String filename = "thumb_" + String.format("%03d", index) + ".jpg";
                 Path output = directory.resolve(filename);
                 ffmpeg.runOrThrow(thumbnailCommand(source, second, output), transcodeTimeout);
-                entries.add(new ThumbnailEntry(second, "/api/videos/" + video.getId() + "/thumbnails/" + filename));
+                entries.add(new ThumbnailEntry(second, "/api/videos/" + videoId + "/thumbnails/" + filename));
             }
-            Files.writeString(manifest, manifestJson(video.getId(), entries));
+            Files.writeString(manifest, manifestJson(videoId, entries));
         } catch (IOException exception) {
             throw new BadRequestException("Impossible de generer les thumbnails: " + exception.getMessage());
         }
