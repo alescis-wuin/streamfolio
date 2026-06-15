@@ -90,7 +90,7 @@ class AdminMediaControllerIntegrationTest {
         Cookie session = login();
 
         mockMvc.perform(multipart("/api/admin/videos")
-                .file(file("media", "minimal.avi", "video/x-msvideo", "avi media"))
+                .file(file("media", "minimal.avi", "video/vnd.avi", "avi media"))
                 .param("title", "Minimal Upload")
                 .with(csrf())
                 .cookie(session))
