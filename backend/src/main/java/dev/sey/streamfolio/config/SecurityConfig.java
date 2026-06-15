@@ -43,10 +43,10 @@ public class SecurityConfig {
             .logout(AbstractHttpConfigurer::disable)
             .authorizeHttpRequests(authorize -> {
                 authorize.requestMatchers(
-                    "/", "/index.html", "/styles.css", "/ui-overrides.css", "/csrf.js", "/app.js",
+                    "/", "/index.html", "/styles.css", "/media-admin.css", "/ui-overrides.css", "/csrf.js", "/app.js",
                     "/sw.js", "/manifest.json", "/manifest.webmanifest", "/favicon.ico"
                 ).permitAll();
-                authorize.requestMatchers("/posters/**", "/icons/**", "/assets/**").permitAll();
+                authorize.requestMatchers("/js/**", "/posters/**", "/icons/**", "/assets/**").permitAll();
                 authorize.requestMatchers("/api/health", "/api/csrf", "/api/auth/login", "/api/auth/logout").permitAll();
                 if (h2ConsoleEnabled) {
                     authorize.requestMatchers("/h2-console/**").permitAll();
@@ -54,18 +54,8 @@ public class SecurityConfig {
                 authorize.anyRequest().authenticated();
             })
             .exceptionHandling(exceptions -> exceptions
-                .authenticationEntryPoint((request, response, exception) -> writeJson(
-                    response,
-                    HttpStatus.UNAUTHORIZED,
-                    "Unauthorized",
-                    "Connexion requise."
-                ))
-                .accessDeniedHandler((request, response, exception) -> writeJson(
-                    response,
-                    HttpStatus.FORBIDDEN,
-                    "Forbidden",
-                    "Action refusée ou jeton CSRF invalide."
-                ))
+                .authenticationEntryPoint((request, response, exception) -> writeJson(response, HttpStatus.UNAUTHORIZED, "Unauthorized", "Connexion requise."))
+                .accessDeniedHandler((request, response, exception) -> writeJson(response, HttpStatus.FORBIDDEN, "Forbidden", "Action refusee ou jeton CSRF invalide."))
             )
             .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
@@ -80,7 +70,6 @@ public class SecurityConfig {
         response.setStatus(status.value());
         response.setCharacterEncoding(StandardCharsets.UTF_8.name());
         response.setContentType(MediaType.APPLICATION_JSON_VALUE);
-        response.getWriter().write("{\"status\":" + status.value()
-            + ",\"error\":\"" + error + "\",\"message\":\"" + message + "\",\"details\":[]}");
+        response.getWriter().write("{\"status\":" + status.value() + ",\"error\":\"" + error + "\",\"message\":\"" + message + "\",\"details\":[]}");
     }
 }
