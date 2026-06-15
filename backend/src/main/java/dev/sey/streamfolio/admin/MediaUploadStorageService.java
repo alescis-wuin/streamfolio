@@ -3,6 +3,7 @@ package dev.sey.streamfolio.admin;
 import dev.sey.streamfolio.common.BadRequestException;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
@@ -69,6 +70,7 @@ public class MediaUploadStorageService {
     private static final Set<String> SUBTITLE_TYPES = Set.of("text/vtt", "text/plain", "application/octet-stream");
     private static final Set<String> IMAGE_EXTENSIONS = Set.of(".jpg", ".jpeg", ".png", ".webp", ".svg");
     private static final Set<String> IMAGE_TYPES = Set.of("image/jpeg", "image/png", "image/webp", "image/svg+xml", "application/octet-stream");
+    private static final byte[] EMPTY_VTT = "WEBVTT\n\n".getBytes(StandardCharsets.UTF_8);
 
     private final Path root;
     private final long maxVideoBytes;
@@ -95,6 +97,13 @@ public class MediaUploadStorageService {
 
     public StoredMediaFile storeSubtitle(MultipartFile file) {
         return store(file, "subtitles", SUBTITLE_EXTENSIONS, SUBTITLE_TYPES, maxSubtitleBytes, null);
+    }
+
+    public StoredMediaFile storeOptionalSubtitle(MultipartFile file) {
+        if (!isMissing(file)) {
+            return storeSubtitle(file);
+        }
+        return storeGeneratedSubtitle();
     }
 
     public StoredMediaFile storePoster(MultipartFile file) {
@@ -196,6 +205,29 @@ public class MediaUploadStorageService {
         }
     }
 
+    private StoredMediaFile storeGeneratedSubtitle() {
+        Path directoryPath = root.resolve("subtitles").normalize();
+        try {
+            Files.createDirectories(directoryPath);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            String sha = HexFormat.of().formatHex(digest.digest(EMPTY_VTT));
+            String storedFilename = sha + ".vtt";
+            Path target = directoryPath.resolve(storedFilename).normalize();
+            if (!target.startsWith(directoryPath)) {
+                throw new BadRequestException("Chemin de stockage invalide.");
+            }
+            boolean created = !Files.exists(target);
+            if (created) {
+                Files.write(target, EMPTY_VTT);
+            }
+            return new StoredMediaFile(storedFilename, "generated-empty.vtt", sha, "text/vtt", EMPTY_VTT.length, created, null, target);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new BadRequestException("SHA-256 indisponible.");
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de preparer les sous-titres: " + exception.getMessage());
+        }
+    }
+
     private UploadCandidate validate(MultipartFile file, Set<String> extensions, Set<String> contentTypes, long maxBytes) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Fichier manquant.");
@@ -252,6 +284,10 @@ public class MediaUploadStorageService {
             throw new BadRequestException("Nom de fichier invalide.");
         }
         return value;
+    }
+
+    private boolean isMissing(MultipartFile file) {
+        return file == null || file.isEmpty() || file.getSize() <= 0;
     }
 
     private boolean hasControlCharacter(String value) {
