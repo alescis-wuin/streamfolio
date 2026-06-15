@@ -1,5 +1,6 @@
 package dev.sey.streamfolio.repository;
 
+import dev.sey.streamfolio.domain.CatalogVideo;
 import dev.sey.streamfolio.domain.TranscodeJob;
 import java.util.List;
 import java.util.Optional;
@@ -15,4 +16,6 @@ public interface TranscodeJobRepository extends JpaRepository<TranscodeJob, Long
     @EntityGraph(attributePaths = {"video", "video.title"})
     @Query("select job from TranscodeJob job where job.id = :id")
     Optional<TranscodeJob> findWithVideoById(@Param("id") Long id);
+
+    void deleteByVideo(CatalogVideo video);
 }

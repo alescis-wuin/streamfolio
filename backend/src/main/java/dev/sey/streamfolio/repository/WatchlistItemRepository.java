@@ -16,4 +16,6 @@ public interface WatchlistItemRepository extends JpaRepository<WatchlistItem, Lo
 
     @EntityGraph(attributePaths = {"title"})
     List<WatchlistItem> findByUser(UserAccount user);
+
+    void deleteByTitle(CatalogTitle title);
 }

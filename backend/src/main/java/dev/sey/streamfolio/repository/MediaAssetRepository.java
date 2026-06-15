@@ -11,6 +11,8 @@ public interface MediaAssetRepository extends JpaRepository<MediaAsset, Long> {
     @EntityGraph(attributePaths = {"video", "video.title"})
     Optional<MediaAsset> findByVideo(CatalogVideo video);
 
+    void deleteByVideo(CatalogVideo video);
+
     @Override
     @EntityGraph(attributePaths = {"video", "video.title"})
     List<MediaAsset> findAll();

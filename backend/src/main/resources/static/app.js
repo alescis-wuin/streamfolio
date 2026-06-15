@@ -1,6 +1,6 @@
 import { api } from './js/api.js';
 import { setupPlayer, playerModeView, initialPlaybackModeText } from './js/player.js';
-import { renderMediaAdmin, renderMediaAdminUpload, handleMediaAdminClick, handleMediaAdminInput, handleMediaAdminSubmit } from './js/media-admin.js';
+import { renderMediaAdmin, renderMediaAdminUpload, renderMediaAdminVideoDetail, handleMediaAdminClick, handleMediaAdminInput, handleMediaAdminSubmit } from './js/media-admin.js';
 import { emptyView, errorView, escapeHtml, formatDuration, labelType, loadingView, normalizeText, progressBar } from './js/utils.js';
 
 const app = document.querySelector('#app');
@@ -88,6 +88,7 @@ async function route() {
     if (info.parts[0] === 'title' && info.parts[1]) return renderDetail(info.parts[1]);
     if (info.parts[0] === 'watch' && info.parts[1]) return renderPlayer(Number(info.parts[1]));
     if (info.parts[0] === 'admin' && info.parts[1] === 'upload') return renderAdminUpload();
+    if (info.parts[0] === 'admin' && info.parts[1] === 'videos' && info.parts[2]) return renderAdminVideoDetailPage(Number(info.parts[2]), info.params);
     if (info.parts[0] === 'admin') return renderAdmin();
     return renderHome();
   } catch (error) {
@@ -173,6 +174,11 @@ async function renderAdmin() {
 async function renderAdminUpload() {
   renderShell(loadingView('Préparation du formulaire d’upload…'));
   renderShell(await renderMediaAdminUpload(api));
+}
+
+async function renderAdminVideoDetailPage(videoId, params) {
+  renderShell(loadingView('Chargement de la vidéo admin…'));
+  renderShell(await renderMediaAdminVideoDetail(api, videoId, params));
 }
 
 function renderRailPage({ data, genres, filters = {}, watchlistOnly = false, fallbackEmpty = 'Aucun contenu disponible.', fullBleed = true }) {
@@ -279,7 +285,7 @@ async function handleSubmit(event) {
 }
 
 async function handleClick(event) {
-  if (await handleMediaAdminClick(event, route)) return;
+  if (await handleMediaAdminClick(event, api, route)) return;
   const logoutButton = event.target.closest('[data-logout]');
   if (logoutButton) { event.preventDefault(); await logout(true); return; }
   const scrollButton = event.target.closest('[data-scroll-target]');
