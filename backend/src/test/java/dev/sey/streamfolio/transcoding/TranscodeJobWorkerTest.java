@@ -3,6 +3,7 @@ package dev.sey.streamfolio.transcoding;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -74,7 +75,7 @@ class TranscodeJobWorkerTest {
         assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.DONE);
         assertThat(job.getProgressPercent()).isEqualTo(100);
         verify(assets).save(any(MediaAsset.class));
-        verify(jobs).save(job);
+        verify(jobs, atLeast(3)).save(job);
     }
 
     @Test
