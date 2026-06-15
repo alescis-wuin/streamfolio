@@ -39,6 +39,8 @@ public class MediaUploadStorageService {
         "video/x-msvideo",
         "video/avi",
         "video/msvideo",
+        "video/vnd.avi",
+        "application/x-msvideo",
         "application/x-troff-msvideo",
         "video/x-matroska",
         "application/x-matroska",
@@ -244,10 +246,15 @@ public class MediaUploadStorageService {
             throw new BadRequestException("Extension de fichier non autorisee: " + extension + ".");
         }
         String contentType = safeContentType(file.getContentType());
-        if (!contentTypes.contains(contentType)) {
+        if (!isAllowedContentType(contentType, contentTypes)) {
             throw new BadRequestException("Type MIME non autorise: " + contentType + ".");
         }
         return new UploadCandidate(originalName, extension, contentType);
+    }
+
+    private boolean isAllowedContentType(String contentType, Set<String> contentTypes) {
+        return contentTypes.contains(contentType)
+            || (contentTypes == MEDIA_TYPES && contentType.startsWith("video/"));
     }
 
     private Path resolveStoredFile(String directory, String filename, Set<String> extensions) {
