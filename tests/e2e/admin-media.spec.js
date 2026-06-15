@@ -7,12 +7,17 @@ async function login(page) {
   await expect(page.getByRole('navigation', { name: 'Navigation principale' })).toBeVisible();
 }
 
+async function openAdmin(page) {
+  await login(page);
+  await page.getByRole('link', { name: 'Admin' }).click();
+  await expect(page).toHaveURL(/#\/admin$/);
+  await expect(page.locator('#admin-title')).toHaveText('Administration vidéo');
+}
+
 test.describe('Administration media', () => {
   test('affiche et filtre le panneau admin video', async ({ page }) => {
-    await login(page);
+    await openAdmin(page);
 
-    await page.goto('/#/admin');
-    await expect(page.getByRole('heading', { name: 'Administration vidéo' })).toBeVisible();
     await expect(page.getByRole('link', { name: 'Upload' })).toBeVisible();
     await expect(page.locator('#main-content')).toContainText('Vidéos');
 
@@ -24,9 +29,7 @@ test.describe('Administration media', () => {
   });
 
   test('ouvre la page upload dediee', async ({ page }) => {
-    await login(page);
-
-    await page.goto('/#/admin');
+    await openAdmin(page);
     await page.getByRole('link', { name: 'Upload' }).click();
 
     await expect(page).toHaveURL(/#\/admin\/upload/);
