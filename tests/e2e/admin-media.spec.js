@@ -36,16 +36,27 @@ test.describe('Administration media', () => {
     expect(page.url()).toContain('#/admin/upload');
     await expect(page.getByRole('heading', { name: 'Upload vidéo' })).toBeVisible();
 
-    const accept = await page.getByLabel('Fichier vidéo').getAttribute('accept');
+    const media = page.getByLabel('Fichier vidéo');
+    const accept = await media.getAttribute('accept');
     expect(accept).toContain('.mkv');
     expect(accept).toContain('.avi');
     expect(accept).toContain('.wmv');
     expect(accept).toContain('.webm');
     expect(accept).toContain('.swf');
     expect(accept).toContain('.m2ts');
+    await expect(media.locator('..')).toHaveClass(/file-duration-row/);
     await expect(page.locator('[data-duration-status]')).toHaveText('00:00');
     await expect(page.locator('[data-thumbnail-time]')).toBeDisabled();
     await expect(page.locator('[data-capture-thumbnail]')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Aide sur la tagline' })).toBeVisible();
+
+    await expect(media).toHaveAttribute('required', '');
+    await expect(page.getByLabel('Titre')).toHaveAttribute('required', '');
+    await expect(page.getByLabel('Année')).not.toHaveAttribute('required', '');
+    await expect(page.getByLabel('Genres')).not.toHaveAttribute('required', '');
+    await expect(page.getByLabel('Description')).not.toHaveAttribute('required', '');
+    await expect(page.getByLabel('Sous-titres VTT')).not.toHaveAttribute('required', '');
+    await expect(page.getByLabel('Affiche / miniature')).not.toHaveAttribute('required', '');
+    await expect(page.getByLabel('Arrière-plan')).not.toHaveAttribute('required', '');
   });
 });
