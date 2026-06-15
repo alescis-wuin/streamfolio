@@ -16,8 +16,8 @@ test.describe('Administration media', () => {
     await expect(page.getByRole('heading', { name: 'Uploader une nouvelle vidéo' })).toBeVisible();
     await expect(page.locator('#main-content')).toContainText('Vidéos');
 
-    await page.getByRole('searchbox', { name: 'Recherche' }).fill('Aurora');
-    await page.getByRole('button', { name: 'Filtrer' }).click();
+    await page.locator('[data-admin-filter] input[name="query"]').fill('Aurora');
+    await page.locator('[data-admin-filter]').getByRole('button', { name: 'Filtrer' }).click();
 
     await expect(page).toHaveURL(/#\/admin\?.*query=Aurora/);
     await expect(page.locator('#main-content')).toContainText('Aurora');
