@@ -81,6 +81,32 @@ class AdminMediaControllerIntegrationTest {
     }
 
     @Test
+    void uploadsAdditionalVideoFormatWithoutManualDurationField() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(multipart("/api/admin/videos")
+                .file(file("media", "demo.mkv", "video/x-matroska", "matroska media"))
+                .file(file("subtitles", "captions.vtt", "text/vtt", "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nDemo"))
+                .file(file("poster", "poster.jpg", "image/jpeg", "poster mkv"))
+                .file(file("backdrop", "backdrop.jpg", "image/jpeg", "backdrop mkv"))
+                .param("title", "Uploaded Matroska")
+                .param("releaseYear", "2026")
+                .param("genres", "Botanique, Admin")
+                .param("synopsis", "Description de test MKV")
+                .with(csrf())
+                .cookie(session))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.assetStatus").value("REGISTERED"));
+
+        CatalogVideo video = videos.findAllWithTitleGraph().stream()
+            .filter(item -> "Uploaded Matroska".equals(item.getTitle().getTitle()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(video.getAssetFilename()).matches("[a-f0-9]{64}\\.mkv");
+        assertThat(video.getDurationSeconds()).isGreaterThanOrEqualTo(1);
+    }
+
+    @Test
     void rejectsInvalidUploadedMediaExtension() throws Exception {
         Cookie session = login();
 

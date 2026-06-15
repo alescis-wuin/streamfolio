@@ -22,9 +22,36 @@ import org.springframework.web.multipart.MultipartFile;
 
 @Service
 public class MediaUploadStorageService {
-    private static final Set<String> MEDIA_EXTENSIONS = Set.of(".mp4", ".m4v", ".mov", ".mkv", ".webm");
+    private static final Set<String> MEDIA_EXTENSIONS = Set.of(
+        ".mp4", ".m4v", ".mov", ".wmv", ".mkv", ".webm", ".avi", ".flv", ".f4v", ".swf",
+        ".mts", ".m2ts", ".ts", ".mpeg", ".mpg", ".mpe", ".m2v", ".vob", ".ogv", ".3gp", ".3g2", ".mxf"
+    );
     private static final Set<String> MEDIA_TYPES = Set.of(
-        "video/mp4", "video/quicktime", "video/x-matroska", "video/webm", "application/octet-stream"
+        "video/mp4",
+        "video/quicktime",
+        "video/x-ms-wmv",
+        "video/x-ms-asf",
+        "application/vnd.ms-asf",
+        "video/x-msvideo",
+        "video/x-matroska",
+        "application/x-matroska",
+        "video/webm",
+        "video/x-flv",
+        "video/flv",
+        "video/x-f4v",
+        "application/f4v",
+        "video/mp2t",
+        "video/vnd.dlna.mpeg-tts",
+        "video/mpeg",
+        "video/ogg",
+        "application/ogg",
+        "video/3gpp",
+        "video/3gpp2",
+        "application/vnd.apple.mpegurl",
+        "application/x-mpegurl",
+        "application/x-shockwave-flash",
+        "application/vnd.adobe.flash.movie",
+        "application/octet-stream"
     );
     private static final Set<String> SUBTITLE_EXTENSIONS = Set.of(".vtt");
     private static final Set<String> SUBTITLE_TYPES = Set.of("text/vtt", "text/plain", "application/octet-stream");
@@ -114,7 +141,7 @@ public class MediaUploadStorageService {
                 Files.deleteIfExists(temp);
             }
             String publicPath = publicKind == null ? null : "/api/media/images/" + publicKind + "/" + storedFilename;
-            return new StoredMediaFile(storedFilename, originalName, sha, contentType, file.getSize(), created, publicPath);
+            return new StoredMediaFile(storedFilename, originalName, sha, contentType, file.getSize(), created, publicPath, target);
         } catch (NoSuchAlgorithmException exception) {
             throw new BadRequestException("SHA-256 indisponible.");
         } catch (IOException exception) {
