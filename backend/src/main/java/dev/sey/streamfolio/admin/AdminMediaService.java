@@ -133,6 +133,7 @@ public class AdminMediaService {
         CatalogTitle title = video.getTitle();
         String nextTitle = textOrDefault(request.title(), title.getTitle());
         int nextDuration = positiveOrDefault(request.durationSeconds(), video.getDurationSeconds());
+        Set<String> nextGenres = request.genres() == null ? new LinkedHashSet<>(title.getGenres()) : cleanGenres(request.genres());
         title.updateMetadata(
             uniqueSlug(nextTitle, title.getId()),
             nextTitle,
@@ -144,7 +145,7 @@ public class AdminMediaService {
             title.getPosterPath(),
             title.getBackdropPath(),
             title.getDisplayPriority(),
-            request.genres() == null ? title.getGenres() : cleanGenres(request.genres())
+            nextGenres
         );
         video.updateMetadata(
             nonNegativeOrDefault(request.seasonNumber(), video.getSeasonNumber()),
@@ -340,11 +341,12 @@ public class AdminMediaService {
     }
 
     private Set<String> cleanGenres(List<String> values) {
-        return values.stream()
+        Set<String> result = values.stream()
             .filter(Objects::nonNull)
             .map(String::trim)
             .filter(value -> !value.isBlank())
             .collect(Collectors.toCollection(LinkedHashSet::new));
+        return result.isEmpty() ? Set.of("Demo") : result;
     }
 
     private String uniqueSlug(String title, Long currentTitleId) {
