@@ -86,6 +86,28 @@ class AdminMediaControllerIntegrationTest {
     }
 
     @Test
+    void uploadsWithOnlyTitleAndVideoFile() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(multipart("/api/admin/videos")
+                .file(file("media", "minimal.avi", "video/x-msvideo", "avi media"))
+                .param("title", "Minimal Upload")
+                .with(csrf())
+                .cookie(session))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.assetStatus").value("REGISTERED"))
+            .andExpect(jsonPath("$.title").value("Minimal Upload"));
+
+        CatalogVideo video = videos.findAllWithTitleGraph().stream()
+            .filter(item -> "Minimal Upload".equals(item.getTitle().getTitle()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(video.getAssetFilename()).matches("[a-f0-9]{64}\\.avi");
+        assertThat(video.getSubtitleFilename()).matches("[a-f0-9]{64}\\.vtt");
+        assertThat(Files.exists(MEDIA_ROOT.resolve("subtitles").resolve(video.getSubtitleFilename()))).isTrue();
+    }
+
+    @Test
     void uploadsAdditionalVideoFormatWithoutManualDurationField() throws Exception {
         Cookie session = login();
 
