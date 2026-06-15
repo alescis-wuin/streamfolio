@@ -11,8 +11,8 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
+import dev.sey.streamfolio.domain.CatalogVideo;
+import dev.sey.streamfolio.repository.CatalogVideoRepository;
 import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -39,7 +39,7 @@ class AdminMediaControllerIntegrationTest {
     private WebApplicationContext context;
 
     @Autowired
-    private ObjectMapper objectMapper;
+    private CatalogVideoRepository videos;
 
     private MockMvc mockMvc;
 
@@ -67,13 +67,12 @@ class AdminMediaControllerIntegrationTest {
     void uploadsVideoAndCreatesRegisteredMediaAssetStoredBySha() throws Exception {
         Cookie session = login();
 
-        JsonNode first = upload(session, "Uploaded Garden", "shared media");
-        JsonNode second = upload(session, "Uploaded Garden Copy", "shared media");
+        UploadedVideo first = upload(session, "Uploaded Garden", "shared media");
+        UploadedVideo second = upload(session, "Uploaded Garden Copy", "shared media");
 
-        String filename = first.get("assetFilename").asText();
-        assertThat(filename).matches("[a-f0-9]{64}\\.mp4");
-        assertThat(second.get("assetFilename").asText()).isEqualTo(filename);
-        assertThat(Files.exists(MEDIA_ROOT.resolve("originals").resolve(filename))).isTrue();
+        assertThat(first.assetFilename()).matches("[a-f0-9]{64}\\.mp4");
+        assertThat(second.assetFilename()).isEqualTo(first.assetFilename());
+        assertThat(Files.exists(MEDIA_ROOT.resolve("originals").resolve(first.assetFilename()))).isTrue();
 
         mockMvc.perform(get("/api/admin/videos?query=Uploaded&page=0&size=10&sort=title,asc").cookie(session))
             .andExpect(status().isOk())
@@ -103,12 +102,10 @@ class AdminMediaControllerIntegrationTest {
     @Test
     void editsLinksOrdersAndUnlinksVideos() throws Exception {
         Cookie session = login();
-        JsonNode first = upload(session, "Admin Series Base", "base media");
-        JsonNode second = upload(session, "Admin Series Episode", "episode media");
-        long firstTitleId = first.get("titleId").asLong();
-        long secondVideoId = second.get("videoId").asLong();
+        UploadedVideo first = upload(session, "Admin Series Base", "base media");
+        UploadedVideo second = upload(session, "Admin Series Episode", "episode media");
 
-        mockMvc.perform(put("/api/admin/videos/" + first.get("videoId").asLong())
+        mockMvc.perform(put("/api/admin/videos/" + first.videoId())
                 .with(csrf())
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -117,17 +114,17 @@ class AdminMediaControllerIntegrationTest {
             .andExpect(jsonPath("$.title").value("Admin Series Base Updated"))
             .andExpect(jsonPath("$.genres[1]").value("Admin"));
 
-        mockMvc.perform(post("/api/admin/videos/" + secondVideoId + "/link")
+        mockMvc.perform(post("/api/admin/videos/" + second.videoId() + "/link")
                 .with(csrf())
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"targetTitleId\":" + firstTitleId + ",\"seasonNumber\":1,\"episodeNumber\":2,\"label\":\"S1:E2\"}"))
+                .content("{\"targetTitleId\":" + first.titleId() + ",\"seasonNumber\":1,\"episodeNumber\":2,\"label\":\"S1:E2\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.titleId").value(firstTitleId))
+            .andExpect(jsonPath("$.titleId").value(first.titleId()))
             .andExpect(jsonPath("$.type").value("SERIES"))
             .andExpect(jsonPath("$.episodeNumber").value(2));
 
-        mockMvc.perform(put("/api/admin/videos/" + secondVideoId + "/order")
+        mockMvc.perform(put("/api/admin/videos/" + second.videoId() + "/order")
                 .with(csrf())
                 .cookie(session)
                 .contentType(MediaType.APPLICATION_JSON)
@@ -135,7 +132,7 @@ class AdminMediaControllerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.episodeNumber").value(3));
 
-        mockMvc.perform(post("/api/admin/videos/" + secondVideoId + "/unlink")
+        mockMvc.perform(post("/api/admin/videos/" + second.videoId() + "/unlink")
                 .with(csrf())
                 .cookie(session))
             .andExpect(status().isOk())
@@ -143,8 +140,8 @@ class AdminMediaControllerIntegrationTest {
             .andExpect(jsonPath("$.seasonNumber").value(0));
     }
 
-    private JsonNode upload(Cookie session, String title, String mediaContent) throws Exception {
-        MvcResult result = mockMvc.perform(multipart("/api/admin/videos")
+    private UploadedVideo upload(Cookie session, String title, String mediaContent) throws Exception {
+        mockMvc.perform(multipart("/api/admin/videos")
                 .file(file("media", "demo.mp4", "video/mp4", mediaContent))
                 .file(file("subtitles", "captions.vtt", "text/vtt", "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nDemo"))
                 .file(file("poster", "poster.jpg", "image/jpeg", "poster" + title))
@@ -157,9 +154,12 @@ class AdminMediaControllerIntegrationTest {
                 .with(csrf())
                 .cookie(session))
             .andExpect(status().isCreated())
-            .andExpect(jsonPath("$.assetStatus").value("REGISTERED"))
-            .andReturn();
-        return objectMapper.readTree(result.getResponse().getContentAsString());
+            .andExpect(jsonPath("$.assetStatus").value("REGISTERED"));
+        CatalogVideo video = videos.findAllWithTitleGraph().stream()
+            .filter(item -> title.equals(item.getTitle().getTitle()))
+            .findFirst()
+            .orElseThrow();
+        return new UploadedVideo(video.getId(), video.getTitle().getId(), video.getAssetFilename());
     }
 
     private MockMultipartFile file(String name, String filename, String contentType, String content) {
@@ -184,5 +184,8 @@ class AdminMediaControllerIntegrationTest {
         } catch (IOException exception) {
             throw new IllegalStateException("Unable to create admin media test directory", exception);
         }
+    }
+
+    private record UploadedVideo(Long videoId, Long titleId, String assetFilename) {
     }
 }
