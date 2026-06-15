@@ -44,8 +44,8 @@ test.describe('Administration media', () => {
     expect(accept).toContain('.webm');
     expect(accept).toContain('.swf');
     expect(accept).toContain('.m2ts');
-    await expect(media.locator('..')).toHaveClass(/file-duration-row/);
-    await expect(page.locator('[data-duration-status]')).toHaveText('00:00');
+    await expect(page.locator('.file-duration-row #upload-media')).toBeVisible();
+    await expect(page.locator('.file-duration-row [data-duration-status]')).toHaveText('00:00');
     await expect(page.locator('[data-thumbnail-time]')).toBeDisabled();
     await expect(page.locator('[data-capture-thumbnail]')).toBeDisabled();
     await expect(page.getByRole('button', { name: 'Aide sur la tagline' })).toBeVisible();
