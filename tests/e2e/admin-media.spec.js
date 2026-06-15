@@ -37,6 +37,7 @@ test.describe('Administration media', () => {
     await expect(page.getByRole('heading', { name: 'Upload vidéo' })).toBeVisible();
 
     const media = page.getByLabel('Fichier vidéo');
+    const title = page.locator('#upload-title');
     const accept = await media.getAttribute('accept');
     expect(accept).toContain('.mkv');
     expect(accept).toContain('.avi');
@@ -51,7 +52,7 @@ test.describe('Administration media', () => {
     await expect(page.getByRole('button', { name: 'Aide sur la tagline' })).toBeVisible();
 
     await expect(media).toHaveAttribute('required', '');
-    await expect(page.getByLabel('Titre')).toHaveAttribute('required', '');
+    await expect(title).toHaveAttribute('required', '');
     await expect(page.getByLabel('Année')).not.toHaveAttribute('required', '');
     await expect(page.getByLabel('Genres')).not.toHaveAttribute('required', '');
     await expect(page.getByLabel('Description')).not.toHaveAttribute('required', '');
