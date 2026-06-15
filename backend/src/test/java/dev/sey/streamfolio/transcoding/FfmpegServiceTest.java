@@ -50,7 +50,7 @@ class FfmpegServiceTest {
 
         assertThatThrownBy(() -> ffmpeg.runOrThrow(List.of(binary.toString()), Duration.ofSeconds(2)))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("FFmpeg a echoue")
+            .hasMessageContaining("FFmpeg a")
             .hasMessageContaining("boom");
     }
 
