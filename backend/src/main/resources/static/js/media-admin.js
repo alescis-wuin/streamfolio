@@ -1,5 +1,13 @@
 import { escapeHtml, progressBar } from './utils.js';
 
+const VIDEO_ACCEPT = [
+  'video/*',
+  '.mp4', '.m4v', '.mov', '.wmv', '.mkv', '.webm', '.avi', '.flv', '.f4v', '.swf',
+  '.mts', '.m2ts', '.ts', '.mpeg', '.mpg', '.mpe', '.m2v', '.vob', '.ogv', '.3gp', '.3g2', '.mxf'
+].join(',');
+const FORMAT_HINT = 'MP4, MOV, WMV, MKV, WebM/HTML5, AVI, FLV, F4V, SWF, AVCHD, MPEG-2, etc.';
+const DEFAULT_YEAR = new Date().getFullYear();
+
 export async function renderMediaAdmin(api) {
   const params = adminParams();
   const [videoPage, jobs, assets] = await Promise.all([
@@ -15,7 +23,6 @@ export async function renderMediaAdmin(api) {
         <p class='lead'>Gère le catalogue, les fichiers locaux, les assets, les jobs FFmpeg et les regroupements film/série.</p>
         ${filtersView(params)}
       </div>
-      ${uploadView()}
       <div class='admin-grid admin-grid-wide'>
         <section class='admin-panel admin-panel-main'>
           <h2>Vidéos</h2>
@@ -28,6 +35,22 @@ export async function renderMediaAdmin(api) {
           ${assets.length ? `<div class='admin-table compact'>${assets.map(assetView).join('')}</div>` : `<p class='muted'>Aucun asset enregistré.</p>`}
         </aside>
       </div>
+    </section>
+  `;
+}
+
+export async function renderMediaAdminUpload() {
+  return `
+    <section class='admin-page admin-upload-page' aria-labelledby='admin-upload-title'>
+      <div class='admin-hero'>
+        <p class='eyebrow'>Nouvel asset</p>
+        <h1 id='admin-upload-title'>Upload vidéo</h1>
+        <p class='lead'>Crée une entrée de catalogue depuis un fichier vidéo, ses sous-titres, son affiche et son arrière-plan.</p>
+        <div class='admin-actions'>
+          <a class='btn ghost' href='#/admin'>Retour à l’administration</a>
+        </div>
+      </div>
+      ${uploadView()}
     </section>
   `;
 }
@@ -45,7 +68,12 @@ export async function handleMediaAdminSubmit(event, api, route) {
   const upload = event.target.closest('[data-upload-form]');
   if (upload) {
     event.preventDefault();
-    await api('/api/admin/videos', { method: 'POST', body: new FormData(upload) });
+    const body = new FormData(upload);
+    ['durationSeconds', 'runtimeMinutes'].forEach((key) => {
+      if (!String(body.get(key) || '').trim()) body.delete(key);
+    });
+    await api('/api/admin/videos', { method: 'POST', body });
+    location.hash = '#/admin';
     route();
     return true;
   }
@@ -93,6 +121,20 @@ export async function handleMediaAdminSubmit(event, api, route) {
 }
 
 export async function handleMediaAdminClick(event, route) {
+  const tooltip = event.target.closest('[data-tooltip-toggle]');
+  if (tooltip) {
+    event.preventDefault();
+    toggleTooltip(tooltip);
+    return true;
+  }
+
+  const capture = event.target.closest('[data-capture-thumbnail]');
+  if (capture) {
+    event.preventDefault();
+    await captureThumbnail(capture);
+    return true;
+  }
+
   const refresh = event.target.closest('[data-refresh-admin]');
   if (refresh) {
     event.preventDefault();
@@ -106,6 +148,25 @@ export async function handleMediaAdminClick(event, route) {
     route();
     return true;
   }
+  return false;
+}
+
+export function handleMediaAdminInput(event) {
+  const changedField = event.target.closest('[data-autofill-field]');
+  if (changedField && event.isTrusted) changedField.dataset.autofilled = 'false';
+
+  const mediaInput = event.target.closest('[data-media-file]');
+  if (mediaInput) {
+    handleMediaFile(mediaInput);
+    return true;
+  }
+
+  const previewInput = event.target.closest('[data-image-preview]');
+  if (previewInput) {
+    updateImagePreview(previewInput);
+    return true;
+  }
+
   return false;
 }
 
@@ -128,29 +189,268 @@ function filtersView(params) {
       <input name='page' type='hidden' value='0'>
       <button class='btn primary' type='submit'>Filtrer</button>
       <a class='btn ghost' href='#/admin'>Réinitialiser</a>
+      <a class='btn primary admin-upload-link' href='#/admin/upload'>Upload</a>
     </form>
   `;
 }
 
 function uploadView() {
   return `
-    <section class='admin-panel'>
-      <h2>Uploader une nouvelle vidéo</h2>
+    <section class='admin-panel admin-upload-panel'>
+      <h2>Créer la vidéo</h2>
       <form class='admin-form admin-upload-form' data-upload-form enctype='multipart/form-data'>
-        <label>Titre <input name='title' required></label>
-        <label>Année <input name='releaseYear' type='number' min='1888' value='2026' required></label>
-        <label>Genres <input name='genres' placeholder='Science, Demo' required></label>
-        <label>Description <textarea name='synopsis' required></textarea></label>
-        <label>Tagline <input name='tagline'></label>
-        <label>Durée vidéo s <input name='durationSeconds' type='number' min='1' value='60'></label>
-        <label>Média <input name='media' type='file' accept='video/*,.mkv,.m4v' required></label>
-        <label>Sous-titres VTT <input name='subtitles' type='file' accept='.vtt,text/vtt' required></label>
-        <label>Poster <input name='poster' type='file' accept='image/*' required></label>
-        <label>Arrière-plan <input name='backdrop' type='file' accept='image/*' required></label>
-        <button class='btn primary' type='submit'>Créer</button>
+        <div class='admin-field'>
+          <label for='upload-media'>Fichier vidéo</label>
+          <input id='upload-media' name='media' type='file' accept='${VIDEO_ACCEPT}' data-media-file required>
+          <p class='field-help'>Formats acceptés : ${FORMAT_HINT}</p>
+        </div>
+        <div class='admin-field'><label for='upload-title'>Titre</label><input id='upload-title' name='title' data-autofill-field required></div>
+        <div class='admin-field'><label for='upload-year'>Année</label><input id='upload-year' name='releaseYear' type='number' min='1888' value='${DEFAULT_YEAR}' data-autofill-field required></div>
+        <div class='admin-field'><label for='upload-genres'>Genres</label><input id='upload-genres' name='genres' placeholder='Science, Drame' data-autofill-field required></div>
+        <div class='admin-field'><label for='upload-synopsis'>Description</label><textarea id='upload-synopsis' name='synopsis' rows='5' data-autofill-field required></textarea></div>
+        <div class='admin-field'>
+          <div class='field-label-row'>
+            <label for='upload-tagline'>Tagline</label>
+            <span class='tooltip-wrap'>
+              <button class='tooltip-button' type='button' aria-label='Aide sur la tagline' aria-expanded='false' data-tooltip-toggle>?</button>
+              <span class='tooltip-popover' role='tooltip'>Phrase courte qui résume la promesse ou l’accroche marketing du titre. Elle s’affiche comme sous-titre éditorial, par exemple sous le titre dans le hero.</span>
+            </span>
+          </div>
+          <input id='upload-tagline' name='tagline' data-autofill-field>
+        </div>
+        <div class='admin-field'><label for='upload-maturity'>Classification</label><input id='upload-maturity' name='maturityRating' placeholder='TV-PG, 12+, Tous publics' data-autofill-field></div>
+        <div class='admin-field'><label for='upload-video-title'>Titre vidéo</label><input id='upload-video-title' name='videoTitle' data-autofill-field></div>
+        <div class='admin-field'><label for='upload-label'>Label</label><input id='upload-label' name='label' placeholder='Film, Bande-annonce, S1:E1' data-autofill-field></div>
+        <input name='durationSeconds' type='hidden' data-duration-seconds>
+        <input name='runtimeMinutes' type='hidden' data-runtime-minutes>
+        <div class='admin-field'>
+          <span>Durée détectée</span>
+          <p class='duration-status' data-duration-status>Choisis un fichier vidéo pour détecter la durée automatiquement.</p>
+        </div>
+        <div class='admin-field'>
+          <label for='upload-subtitles'>Sous-titres VTT</label>
+          <input id='upload-subtitles' name='subtitles' type='file' accept='.vtt,text/vtt' required>
+        </div>
+        <div class='admin-field'>
+          <label for='upload-poster'>Affiche / miniature</label>
+          <input id='upload-poster' name='poster' type='file' accept='image/*' data-image-preview data-preview-target='poster' required>
+          <div class='admin-preview-frame'><img data-preview='poster' alt='Prévisualisation de l’affiche' hidden></div>
+        </div>
+        <div class='admin-field thumbnail-picker'>
+          <label for='thumbnail-time'>Miniature depuis la vidéo</label>
+          <div class='thumbnail-controls'>
+            <input id='thumbnail-time' type='number' min='0' step='0.1' placeholder='Timestamp en secondes' data-thumbnail-time disabled>
+            <button class='btn ghost' type='button' data-capture-thumbnail disabled>Utiliser ce timestamp</button>
+          </div>
+          <p class='field-help' data-thumbnail-status>Disponible après sélection d’un fichier vidéo lisible par le navigateur.</p>
+        </div>
+        <div class='admin-field'>
+          <label for='upload-backdrop'>Arrière-plan</label>
+          <input id='upload-backdrop' name='backdrop' type='file' accept='image/*' data-image-preview data-preview-target='backdrop' required>
+          <div class='admin-preview-frame admin-preview-wide'><img data-preview='backdrop' alt='Prévisualisation de l’arrière-plan' hidden></div>
+        </div>
+        <div class='admin-actions'>
+          <button class='btn primary' type='submit'>Créer</button>
+          <a class='btn ghost' href='#/admin'>Annuler</a>
+        </div>
       </form>
     </section>
   `;
+}
+
+function handleMediaFile(input) {
+  const form = input.closest('[data-upload-form]');
+  const file = input.files?.[0];
+  setThumbnailControls(form, Boolean(file));
+  if (!form || !file) {
+    setDuration(form, null);
+    return;
+  }
+
+  const derivedTitle = titleFromFilename(file.name);
+  const derivedYear = yearFromFilename(file.name);
+  setAutoValue(form.elements.title, derivedTitle);
+  setAutoValue(form.elements.videoTitle, derivedTitle);
+  setAutoValue(form.elements.label, 'Film');
+  setAutoValue(form.elements.genres, 'Demo');
+  setAutoValue(form.elements.synopsis, `Description à compléter pour ${derivedTitle}.`);
+  setAutoValue(form.elements.maturityRating, 'TV-PG');
+  if (derivedYear) setAutoValue(form.elements.releaseYear, String(derivedYear));
+
+  detectDuration(form, file);
+}
+
+function detectDuration(form, file) {
+  const status = form.querySelector('[data-duration-status]');
+  setDuration(form, null);
+  status.textContent = 'Lecture des métadonnées vidéo…';
+  const video = document.createElement('video');
+  const objectUrl = URL.createObjectURL(file);
+  video.preload = 'metadata';
+  video.muted = true;
+  video.src = objectUrl;
+  video.addEventListener('loadedmetadata', () => {
+    const seconds = Math.max(1, Math.round(Number(video.duration) || 0));
+    URL.revokeObjectURL(objectUrl);
+    if (!Number.isFinite(seconds) || seconds < 1) {
+      status.textContent = 'Durée non lisible par le navigateur ; le backend tentera de l’extraire.';
+      return;
+    }
+    setDuration(form, seconds);
+    status.textContent = `${formatSeconds(seconds)} détecté automatiquement.`;
+  }, { once: true });
+  video.addEventListener('error', () => {
+    URL.revokeObjectURL(objectUrl);
+    status.textContent = 'Durée non lisible par le navigateur ; le backend tentera de l’extraire.';
+  }, { once: true });
+}
+
+function setDuration(form, seconds) {
+  const duration = form?.querySelector('[data-duration-seconds]');
+  const runtime = form?.querySelector('[data-runtime-minutes]');
+  const thumbnailTime = form?.querySelector('[data-thumbnail-time]');
+  if (!duration || !runtime) return;
+  if (!seconds) {
+    duration.value = '';
+    runtime.value = '';
+    thumbnailTime?.removeAttribute('max');
+    return;
+  }
+  duration.value = String(seconds);
+  runtime.value = String(Math.max(1, Math.ceil(seconds / 60)));
+  if (thumbnailTime) thumbnailTime.max = String(seconds);
+}
+
+function setThumbnailControls(form, enabled) {
+  form?.querySelectorAll('[data-thumbnail-time], [data-capture-thumbnail]').forEach((element) => {
+    element.disabled = !enabled;
+  });
+  const status = form?.querySelector('[data-thumbnail-status]');
+  if (status) status.textContent = enabled ? 'Indique un timestamp en secondes puis génère l’affiche depuis la vidéo.' : 'Disponible après sélection d’un fichier vidéo lisible par le navigateur.';
+}
+
+async function captureThumbnail(button) {
+  const form = button.closest('[data-upload-form]');
+  const mediaInput = form?.querySelector('[data-media-file]');
+  const posterInput = form?.querySelector("input[name='poster']");
+  const timeInput = form?.querySelector('[data-thumbnail-time]');
+  const status = form?.querySelector('[data-thumbnail-status]');
+  const file = mediaInput?.files?.[0];
+  if (!form || !file || !posterInput || !timeInput) return;
+
+  const requestedTime = Math.max(0, Number(timeInput.value || 0));
+  status.textContent = 'Extraction de l’image…';
+  button.disabled = true;
+  try {
+    const thumbnail = await frameFileFromVideo(file, requestedTime);
+    const transfer = new DataTransfer();
+    transfer.items.add(thumbnail);
+    posterInput.files = transfer.files;
+    updateImagePreview(posterInput);
+    status.textContent = `Miniature générée à ${requestedTime.toFixed(1)} s.`;
+  } catch (error) {
+    status.textContent = error.message || 'Impossible d’extraire une image depuis ce fichier.';
+  } finally {
+    button.disabled = false;
+  }
+}
+
+async function frameFileFromVideo(file, requestedTime) {
+  const objectUrl = URL.createObjectURL(file);
+  const video = document.createElement('video');
+  video.preload = 'metadata';
+  video.muted = true;
+  video.playsInline = true;
+  video.src = objectUrl;
+  try {
+    await waitForMedia(video, 'loadedmetadata');
+    const duration = Number.isFinite(video.duration) ? video.duration : requestedTime;
+    video.currentTime = Math.min(Math.max(0, requestedTime), Math.max(0, duration - 0.05));
+    await waitForMedia(video, 'seeked');
+    const width = video.videoWidth || 1280;
+    const height = video.videoHeight || 720;
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    canvas.getContext('2d').drawImage(video, 0, 0, width, height);
+    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Capture image impossible.')), 'image/jpeg', 0.92));
+    return new File([blob], `${filenameStem(file.name)}-thumbnail.jpg`, { type: 'image/jpeg' });
+  } catch (error) {
+    throw new Error('Ce format ne peut pas être prévisualisé par le navigateur pour l’extraction de miniature.');
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function waitForMedia(element, eventName) {
+  return new Promise((resolve, reject) => {
+    const cleanup = () => {
+      element.removeEventListener(eventName, onEvent);
+      element.removeEventListener('error', onError);
+    };
+    const onEvent = () => { cleanup(); resolve(); };
+    const onError = () => { cleanup(); reject(new Error('Erreur de lecture média.')); };
+    element.addEventListener(eventName, onEvent, { once: true });
+    element.addEventListener('error', onError, { once: true });
+  });
+}
+
+function updateImagePreview(input) {
+  const form = input.closest('[data-upload-form]');
+  const previewName = input.dataset.previewTarget;
+  const image = form?.querySelector(`[data-preview='${previewName}']`);
+  const file = input.files?.[0];
+  if (!image || !file) return;
+  if (image.dataset.objectUrl) URL.revokeObjectURL(image.dataset.objectUrl);
+  const objectUrl = URL.createObjectURL(file);
+  image.dataset.objectUrl = objectUrl;
+  image.src = objectUrl;
+  image.hidden = false;
+}
+
+function setAutoValue(field, value) {
+  if (!field || !value) return;
+  if (!field.value || field.dataset.autofilled === 'true') {
+    field.value = value;
+    field.dataset.autofilled = 'true';
+  }
+}
+
+function titleFromFilename(filename) {
+  return filenameStem(filename)
+    .replace(/\b(19|20)\d{2}\b/g, ' ')
+    .replace(/\b(2160p|1080p|720p|480p|web[-_. ]?dl|bluray|brrip|hdrip|x264|x265|h264|h265|hevc|aac|dts)\b/gi, ' ')
+    .replace(/[._\-]+/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim() || 'Nouvelle vidéo';
+}
+
+function filenameStem(filename) {
+  return String(filename || 'video').replace(/\.[^.]+$/, '');
+}
+
+function yearFromFilename(filename) {
+  const match = String(filename || '').match(/(?:^|\D)((?:19|20)\d{2})(?:\D|$)/);
+  return match ? Number(match[1]) : null;
+}
+
+function formatSeconds(totalSeconds) {
+  const total = Math.max(0, Number(totalSeconds) || 0);
+  const hours = Math.floor(total / 3600);
+  const minutes = Math.floor((total % 3600) / 60);
+  const seconds = total % 60;
+  return [hours ? `${hours} h` : '', minutes ? `${minutes} min` : '', `${seconds} s`].filter(Boolean).join(' ');
+}
+
+function toggleTooltip(button) {
+  const wrapper = button.closest('.tooltip-wrap');
+  const nextOpen = !wrapper.classList.contains('is-open');
+  document.querySelectorAll('.tooltip-wrap.is-open').forEach((item) => {
+    item.classList.remove('is-open');
+    item.querySelector('[data-tooltip-toggle]')?.setAttribute('aria-expanded', 'false');
+  });
+  wrapper.classList.toggle('is-open', nextOpen);
+  button.setAttribute('aria-expanded', String(nextOpen));
 }
 
 function videoView(video) {
@@ -209,7 +509,7 @@ function pageHref(params, page) {
 }
 
 function jobView(job) {
-  return `<article class='admin-row'><div><strong>#${job.id} · ${escapeHtml(job.title)} — ${escapeHtml(job.videoTitle)}</strong><p>${escapeHtml(job.message || '')}</p>${progressBar(job.progressPercent || 0, `Progression ${job.progressPercent || 0}%`)}</div><span class='status-pill status-${String(job.status || '').toLowerCase()}'>${escapeHtml(job.status)}</span></article>`;
+  return `<article class='admin-row'><div><strong>#${job.id} · ${escapeHtml(job.title)} — ${escapeHtml(job.videoTitle)}</strong><p>${escapeHtml(job.message || '')}</p>${progressBar(job.progressPercent || 0, 'Progression ' + (job.progressPercent || 0) + '%')}</div><span class='status-pill status-${String(job.status || '').toLowerCase()}'>${escapeHtml(job.status)}</span></article>`;
 }
 
 function assetView(asset) {

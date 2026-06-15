@@ -74,10 +74,41 @@ class AdminMediaControllerIntegrationTest {
         assertThat(second.assetFilename()).isEqualTo(first.assetFilename());
         assertThat(Files.exists(MEDIA_ROOT.resolve("originals").resolve(first.assetFilename()))).isTrue();
 
-        mockMvc.perform(get("/api/admin/videos?query=Uploaded&page=0&size=10&sort=title,asc").cookie(session))
+        mockMvc.perform(get("/api/admin/videos")
+                .param("query", first.assetFilename())
+                .param("page", "0")
+                .param("size", "10")
+                .param("sort", "title,asc")
+                .cookie(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pagination.totalElements").value(2))
             .andExpect(jsonPath("$.items[0].assetStatus").value("REGISTERED"));
+    }
+
+    @Test
+    void uploadsAdditionalVideoFormatWithoutManualDurationField() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(multipart("/api/admin/videos")
+                .file(file("media", "demo.mkv", "video/x-matroska", "matroska media"))
+                .file(file("subtitles", "captions.vtt", "text/vtt", "WEBVTT\n\n00:00:00.000 --> 00:00:01.000\nDemo"))
+                .file(file("poster", "poster.jpg", "image/jpeg", "poster mkv"))
+                .file(file("backdrop", "backdrop.jpg", "image/jpeg", "backdrop mkv"))
+                .param("title", "Uploaded Matroska")
+                .param("releaseYear", "2026")
+                .param("genres", "Botanique, Admin")
+                .param("synopsis", "Description de test MKV")
+                .with(csrf())
+                .cookie(session))
+            .andExpect(status().isCreated())
+            .andExpect(jsonPath("$.assetStatus").value("REGISTERED"));
+
+        CatalogVideo video = videos.findAllWithTitleGraph().stream()
+            .filter(item -> "Uploaded Matroska".equals(item.getTitle().getTitle()))
+            .findFirst()
+            .orElseThrow();
+        assertThat(video.getAssetFilename()).matches("[a-f0-9]{64}\\.mkv");
+        assertThat(video.getDurationSeconds()).isGreaterThanOrEqualTo(1);
     }
 
     @Test
@@ -85,7 +116,7 @@ class AdminMediaControllerIntegrationTest {
         Cookie session = login();
 
         mockMvc.perform(multipart("/api/admin/videos")
-                .file(file("media", "evil.exe", "application/octet-stream", "bad"))
+                .file(file("media", "invalid.bin", "application/octet-stream", "bad"))
                 .file(file("subtitles", "captions.vtt", "text/vtt", "WEBVTT"))
                 .file(file("poster", "poster.jpg", "image/jpeg", "poster"))
                 .file(file("backdrop", "backdrop.jpg", "image/jpeg", "backdrop"))

@@ -1,5 +1,7 @@
 package dev.sey.streamfolio.admin;
 
+import java.nio.file.Path;
+
 public record StoredMediaFile(
     String storedFilename,
     String originalFilename,
@@ -7,6 +9,7 @@ public record StoredMediaFile(
     String contentType,
     long sizeBytes,
     boolean created,
-    String publicPath
+    String publicPath,
+    Path storedPath
 ) {
 }

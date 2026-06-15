@@ -65,6 +65,10 @@
   align-items: end;
 }
 
+.admin-filter-form .admin-upload-link {
+  margin-left: auto;
+}
+
 .admin-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
@@ -213,6 +217,139 @@
   object-fit: cover;
 }
 
+.admin-upload-panel {
+  width: min(100%, 76rem);
+}
+
+.admin-upload-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1rem;
+  align-items: stretch;
+}
+
+.admin-upload-form .admin-field {
+  display: grid;
+  gap: 0.42rem;
+  min-width: 0;
+}
+
+.admin-upload-form .admin-field > label,
+.admin-upload-form .admin-field > span,
+.field-label-row label {
+  color: var(--muted);
+  font-size: 0.86rem;
+  font-weight: 700;
+}
+
+.admin-upload-form input,
+.admin-upload-form select,
+.admin-upload-form textarea {
+  width: 100%;
+  min-width: 0;
+}
+
+.admin-upload-form textarea {
+  min-height: 8rem;
+  resize: vertical;
+}
+
+.field-help,
+.duration-status,
+.thumbnail-picker p {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.85rem;
+  line-height: 1.45;
+}
+
+.field-label-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tooltip-wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.tooltip-button {
+  display: grid;
+  place-items: center;
+  width: 1.35rem;
+  height: 1.35rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.09);
+  font-size: 0.78rem;
+  font-weight: 900;
+  line-height: 1;
+}
+
+.tooltip-popover {
+  position: absolute;
+  left: 50%;
+  bottom: calc(100% + 0.55rem);
+  z-index: 30;
+  width: min(22rem, 78vw);
+  padding: 0.72rem 0.82rem;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  color: var(--text);
+  background: rgba(10, 10, 12, 0.96);
+  box-shadow: var(--shadow);
+  line-height: 1.45;
+  opacity: 0;
+  pointer-events: none;
+  transform: translate(-50%, 0.35rem);
+  transition: opacity 140ms ease, transform 140ms ease;
+}
+
+.tooltip-wrap:hover .tooltip-popover,
+.tooltip-wrap:focus-within .tooltip-popover,
+.tooltip-wrap.is-open .tooltip-popover {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translate(-50%, 0);
+}
+
+.admin-preview-frame {
+  display: grid;
+  place-items: center;
+  min-height: 12rem;
+  overflow: hidden;
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.admin-preview-frame img {
+  width: 100%;
+  max-height: 24rem;
+  object-fit: contain;
+}
+
+.admin-preview-wide img {
+  aspect-ratio: 16 / 9;
+  object-fit: cover;
+}
+
+.thumbnail-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 12rem) auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.thumbnail-controls input:disabled,
+.thumbnail-controls button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
 @media (max-width: 920px) {
   .admin-grid,
   .admin-grid-wide {
@@ -225,5 +362,11 @@
   .admin-form select,
   .admin-form textarea {
     min-width: 100%;
+  }
+  .admin-filter-form .admin-upload-link {
+    margin-left: 0;
+  }
+  .thumbnail-controls {
+    grid-template-columns: 1fr;
   }
 }

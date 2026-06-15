@@ -34,15 +34,18 @@ public class AdminMediaService {
     private final CatalogVideoRepository videos;
     private final MediaAssetRepository assets;
     private final MediaUploadStorageService storage;
+    private final MediaDurationService durations;
 
     public AdminMediaService(CatalogTitleRepository titles,
                              CatalogVideoRepository videos,
                              MediaAssetRepository assets,
-                             MediaUploadStorageService storage) {
+                             MediaUploadStorageService storage,
+                             MediaDurationService durations) {
         this.titles = titles;
         this.videos = videos;
         this.assets = assets;
         this.storage = storage;
+        this.durations = durations;
     }
 
     @Transactional(readOnly = true)
@@ -89,7 +92,7 @@ public class AdminMediaService {
         StoredMediaFile storedBackdrop = storage.storeBackdrop(backdrop);
 
         String cleanTitle = requiredText(title, "Titre manquant.");
-        int cleanDuration = positiveOrDefault(durationSeconds, 1);
+        int cleanDuration = durationFromUpload(durationSeconds, storedMedia);
         CatalogTitle catalogTitle = new CatalogTitle(
             uniqueSlug(cleanTitle, null),
             cleanTitle,
@@ -300,6 +303,13 @@ public class AdminMediaService {
             throw new BadRequestException("Annee de sortie invalide.");
         }
         return value;
+    }
+
+    private int durationFromUpload(Integer durationSeconds, StoredMediaFile storedMedia) {
+        if (durationSeconds != null) {
+            return positiveOrDefault(durationSeconds, 1);
+        }
+        return durations.detectSeconds(storedMedia.storedPath()).orElse(1);
     }
 
     private int valueOrDefault(Integer value, int fallback) {

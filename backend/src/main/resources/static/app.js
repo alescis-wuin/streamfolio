@@ -1,6 +1,6 @@
 import { api } from './js/api.js';
 import { setupPlayer, playerModeView, initialPlaybackModeText } from './js/player.js';
-import { renderMediaAdmin, handleMediaAdminClick, handleMediaAdminSubmit } from './js/media-admin.js';
+import { renderMediaAdmin, renderMediaAdminUpload, handleMediaAdminClick, handleMediaAdminInput, handleMediaAdminSubmit } from './js/media-admin.js';
 import { emptyView, errorView, escapeHtml, formatDuration, labelType, loadingView, normalizeText, progressBar } from './js/utils.js';
 
 const app = document.querySelector('#app');
@@ -42,6 +42,8 @@ async function init() {
   window.addEventListener('hashchange', route);
   document.addEventListener('click', handleClick);
   document.addEventListener('submit', handleSubmit);
+  document.addEventListener('change', handleInput);
+  document.addEventListener('input', handleInput);
   window.addEventListener('resize', syncCarouselControls);
   route();
 }
@@ -85,6 +87,7 @@ async function route() {
     if (info.parts[0] === 'my-list') return renderMyList();
     if (info.parts[0] === 'title' && info.parts[1]) return renderDetail(info.parts[1]);
     if (info.parts[0] === 'watch' && info.parts[1]) return renderPlayer(Number(info.parts[1]));
+    if (info.parts[0] === 'admin' && info.parts[1] === 'upload') return renderAdminUpload();
     if (info.parts[0] === 'admin') return renderAdmin();
     return renderHome();
   } catch (error) {
@@ -165,6 +168,11 @@ async function renderMyList() {
 async function renderAdmin() {
   renderShell(loadingView('Chargement du pipeline média…'));
   renderShell(await renderMediaAdmin(api));
+}
+
+async function renderAdminUpload() {
+  renderShell(loadingView('Préparation du formulaire d’upload…'));
+  renderShell(await renderMediaAdminUpload(api));
 }
 
 function renderRailPage({ data, genres, filters = {}, watchlistOnly = false, fallbackEmpty = 'Aucun contenu disponible.', fullBleed = true }) {
@@ -285,6 +293,10 @@ async function handleClick(event) {
     watchlistButton.disabled = true;
     try { await api(`/api/titles/${id}/watchlist`, { method: active ? 'DELETE' : 'POST' }); invalidateContentCache(); route(); } catch (error) { renderShell(errorView(error.message)); }
   }
+}
+
+function handleInput(event) {
+  handleMediaAdminInput(event);
 }
 
 async function logout(refresh = true) {
