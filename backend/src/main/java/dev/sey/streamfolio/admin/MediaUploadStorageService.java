@@ -23,26 +23,34 @@ import org.springframework.web.multipart.MultipartFile;
 @Service
 public class MediaUploadStorageService {
     private static final Set<String> MEDIA_EXTENSIONS = Set.of(
-        ".mp4", ".m4v", ".mov", ".wmv", ".mkv", ".webm", ".avi", ".flv", ".f4v", ".swf",
-        ".mts", ".m2ts", ".ts", ".mpeg", ".mpg", ".mpe", ".m2v", ".vob", ".ogv", ".3gp", ".3g2", ".mxf"
+        ".mp4", ".m4v", ".mov", ".qt", ".wmv", ".asf", ".mkv", ".webm", ".avi", ".divx",
+        ".flv", ".f4v", ".swf", ".mts", ".m2ts", ".ts", ".m2t", ".mpeg", ".mpg", ".mpe",
+        ".m1v", ".m2v", ".m2p", ".ps", ".vob", ".ogv", ".ogg", ".3gp", ".3g2", ".mxf",
+        ".dv", ".rm", ".rmvb", ".mod", ".tod", ".dat"
     );
     private static final Set<String> MEDIA_TYPES = Set.of(
         "video/mp4",
+        "video/x-m4v",
         "video/quicktime",
         "video/x-ms-wmv",
         "video/x-ms-asf",
         "application/vnd.ms-asf",
         "video/x-msvideo",
+        "video/avi",
+        "video/msvideo",
+        "application/x-troff-msvideo",
         "video/x-matroska",
         "application/x-matroska",
         "video/webm",
         "video/x-flv",
+        "application/x-flv",
         "video/flv",
         "video/x-f4v",
         "application/f4v",
         "video/mp2t",
         "video/vnd.dlna.mpeg-tts",
         "video/mpeg",
+        "video/x-mpeg",
         "video/ogg",
         "application/ogg",
         "video/3gpp",
@@ -51,6 +59,10 @@ public class MediaUploadStorageService {
         "application/x-mpegurl",
         "application/x-shockwave-flash",
         "application/vnd.adobe.flash.movie",
+        "video/dv",
+        "video/x-dv",
+        "application/vnd.rn-realmedia",
+        "video/vnd.rn-realvideo",
         "application/octet-stream"
     );
     private static final Set<String> SUBTITLE_EXTENSIONS = Set.of(".vtt");
@@ -77,6 +89,10 @@ public class MediaUploadStorageService {
         return store(file, "originals", MEDIA_EXTENSIONS, MEDIA_TYPES, maxVideoBytes, null);
     }
 
+    public StoredMediaFile storeTemporaryVideo(MultipartFile file) {
+        return storeTemporary(file, "tmp-probe", MEDIA_EXTENSIONS, MEDIA_TYPES, maxVideoBytes);
+    }
+
     public StoredMediaFile storeSubtitle(MultipartFile file) {
         return store(file, "subtitles", SUBTITLE_EXTENSIONS, SUBTITLE_TYPES, maxSubtitleBytes, null);
     }
@@ -98,8 +114,89 @@ public class MediaUploadStorageService {
         return new FileSystemResource(resolveStoredFile(directory, filename, IMAGE_EXTENSIONS));
     }
 
+    public void deleteQuietly(Path path) {
+        if (path == null) {
+            return;
+        }
+        try {
+            Files.deleteIfExists(path);
+        } catch (IOException ignored) {
+            // Best-effort cleanup for temporary probe uploads.
+        }
+    }
+
     private StoredMediaFile store(MultipartFile file, String directory, Set<String> extensions,
                                   Set<String> contentTypes, long maxBytes, String publicKind) {
+        UploadCandidate candidate = validate(file, extensions, contentTypes, maxBytes);
+        Path directoryPath = root.resolve(directory).normalize();
+        try {
+            Files.createDirectories(directoryPath);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            Path temp = Files.createTempFile(directoryPath, "upload-", ".tmp");
+            try (InputStream input = new DigestInputStream(file.getInputStream(), digest)) {
+                Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
+            }
+            String sha = HexFormat.of().formatHex(digest.digest());
+            String storedFilename = sha + candidate.extension();
+            Path target = directoryPath.resolve(storedFilename).normalize();
+            if (!target.startsWith(directoryPath)) {
+                Files.deleteIfExists(temp);
+                throw new BadRequestException("Chemin de stockage invalide.");
+            }
+            boolean created = !Files.exists(target);
+            if (created) {
+                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
+            } else {
+                Files.deleteIfExists(temp);
+            }
+            String publicPath = publicKind == null ? null : "/api/media/images/" + publicKind + "/" + storedFilename;
+            return new StoredMediaFile(
+                storedFilename,
+                candidate.originalName(),
+                sha,
+                candidate.contentType(),
+                file.getSize(),
+                created,
+                publicPath,
+                target
+            );
+        } catch (NoSuchAlgorithmException exception) {
+            throw new BadRequestException("SHA-256 indisponible.");
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de stocker le fichier: " + exception.getMessage());
+        }
+    }
+
+    private StoredMediaFile storeTemporary(MultipartFile file, String directory, Set<String> extensions,
+                                           Set<String> contentTypes, long maxBytes) {
+        UploadCandidate candidate = validate(file, extensions, contentTypes, maxBytes);
+        Path directoryPath = root.resolve(directory).normalize();
+        try {
+            Files.createDirectories(directoryPath);
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            Path temp = Files.createTempFile(directoryPath, "probe-", candidate.extension());
+            try (InputStream input = new DigestInputStream(file.getInputStream(), digest)) {
+                Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
+            }
+            String sha = HexFormat.of().formatHex(digest.digest());
+            return new StoredMediaFile(
+                temp.getFileName().toString(),
+                candidate.originalName(),
+                sha,
+                candidate.contentType(),
+                file.getSize(),
+                true,
+                null,
+                temp
+            );
+        } catch (NoSuchAlgorithmException exception) {
+            throw new BadRequestException("SHA-256 indisponible.");
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de preparer le fichier: " + exception.getMessage());
+        }
+    }
+
+    private UploadCandidate validate(MultipartFile file, Set<String> extensions, Set<String> contentTypes, long maxBytes) {
         if (file == null || file.isEmpty()) {
             throw new BadRequestException("Fichier manquant.");
         }
@@ -118,35 +215,7 @@ public class MediaUploadStorageService {
         if (!contentTypes.contains(contentType)) {
             throw new BadRequestException("Type MIME non autorise: " + contentType + ".");
         }
-
-        Path directoryPath = root.resolve(directory).normalize();
-        try {
-            Files.createDirectories(directoryPath);
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            Path temp = Files.createTempFile(directoryPath, "upload-", ".tmp");
-            try (InputStream input = new DigestInputStream(file.getInputStream(), digest)) {
-                Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
-            }
-            String sha = HexFormat.of().formatHex(digest.digest());
-            String storedFilename = sha + extension;
-            Path target = directoryPath.resolve(storedFilename).normalize();
-            if (!target.startsWith(directoryPath)) {
-                Files.deleteIfExists(temp);
-                throw new BadRequestException("Chemin de stockage invalide.");
-            }
-            boolean created = !Files.exists(target);
-            if (created) {
-                Files.move(temp, target, StandardCopyOption.ATOMIC_MOVE);
-            } else {
-                Files.deleteIfExists(temp);
-            }
-            String publicPath = publicKind == null ? null : "/api/media/images/" + publicKind + "/" + storedFilename;
-            return new StoredMediaFile(storedFilename, originalName, sha, contentType, file.getSize(), created, publicPath, target);
-        } catch (NoSuchAlgorithmException exception) {
-            throw new BadRequestException("SHA-256 indisponible.");
-        } catch (IOException exception) {
-            throw new BadRequestException("Impossible de stocker le fichier: " + exception.getMessage());
-        }
+        return new UploadCandidate(originalName, extension, contentType);
     }
 
     private Path resolveStoredFile(String directory, String filename, Set<String> extensions) {
@@ -207,5 +276,8 @@ public class MediaUploadStorageService {
             return "application/octet-stream";
         }
         return contentType.trim().toLowerCase(Locale.ROOT);
+    }
+
+    private record UploadCandidate(String originalName, String extension, String contentType) {
     }
 }
