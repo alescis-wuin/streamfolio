@@ -74,7 +74,12 @@ class AdminMediaControllerIntegrationTest {
         assertThat(second.assetFilename()).isEqualTo(first.assetFilename());
         assertThat(Files.exists(MEDIA_ROOT.resolve("originals").resolve(first.assetFilename()))).isTrue();
 
-        mockMvc.perform(get("/api/admin/videos?query=Garden&page=0&size=10&sort=title,asc").cookie(session))
+        mockMvc.perform(get("/api/admin/videos")
+                .param("query", first.assetFilename())
+                .param("page", "0")
+                .param("size", "10")
+                .param("sort", "title,asc")
+                .cookie(session))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.pagination.totalElements").value(2))
             .andExpect(jsonPath("$.items[0].assetStatus").value("REGISTERED"));
