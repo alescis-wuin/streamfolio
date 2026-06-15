@@ -55,9 +55,9 @@ public class AdminMediaController {
     @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public AdminVideoDto upload(@RequestParam String title,
-                                @RequestParam Integer releaseYear,
-                                @RequestParam String genres,
-                                @RequestParam String synopsis,
+                                @RequestParam(required = false) Integer releaseYear,
+                                @RequestParam(required = false) String genres,
+                                @RequestParam(required = false) String synopsis,
                                 @RequestParam(required = false) String tagline,
                                 @RequestParam(required = false) String maturityRating,
                                 @RequestParam(required = false) Integer runtimeMinutes,
@@ -65,9 +65,9 @@ public class AdminMediaController {
                                 @RequestParam(required = false) String label,
                                 @RequestParam(required = false) Integer durationSeconds,
                                 @RequestPart MultipartFile media,
-                                @RequestPart MultipartFile subtitles,
-                                @RequestPart MultipartFile poster,
-                                @RequestPart MultipartFile backdrop) {
+                                @RequestPart(required = false) MultipartFile subtitles,
+                                @RequestPart(required = false) MultipartFile poster,
+                                @RequestPart(required = false) MultipartFile backdrop) {
         return adminMedia.upload(
             title, releaseYear, genres, synopsis, tagline, maturityRating, runtimeMinutes,
             videoTitle, label, durationSeconds, media, subtitles, poster, backdrop
