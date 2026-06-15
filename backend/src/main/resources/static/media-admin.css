@@ -217,8 +217,17 @@
   object-fit: cover;
 }
 
-.admin-upload-panel {
+.admin-upload-page {
+  justify-items: center;
+}
+
+.admin-upload-page .admin-hero {
   width: min(100%, 76rem);
+}
+
+.admin-upload-panel {
+  width: min(100%, 56rem);
+  justify-self: center;
 }
 
 .admin-upload-form {
@@ -252,6 +261,59 @@
 .admin-upload-form textarea {
   min-height: 8rem;
   resize: vertical;
+}
+
+.file-duration-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+}
+
+.file-duration-row .duration-status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 5.4rem;
+  min-height: 2.7rem;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 0 0.75rem;
+  color: var(--text);
+  background: rgba(255, 255, 255, 0.075);
+  font-variant-numeric: tabular-nums;
+  font-weight: 900;
+}
+
+.metadata-panel {
+  border: 1px solid var(--line-soft);
+  border-radius: var(--radius-md);
+  padding: 0.85rem;
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.metadata-panel dl {
+  display: grid;
+  gap: 0.55rem;
+  margin: 0;
+}
+
+.metadata-panel dl > div {
+  display: grid;
+  grid-template-columns: minmax(6rem, 0.24fr) minmax(0, 1fr);
+  gap: 0.75rem;
+}
+
+.metadata-panel dt {
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+.metadata-panel dd {
+  margin: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
 }
 
 .field-help,
@@ -366,7 +428,12 @@
   .admin-filter-form .admin-upload-link {
     margin-left: 0;
   }
-  .thumbnail-controls {
+  .thumbnail-controls,
+  .file-duration-row,
+  .metadata-panel dl > div {
     grid-template-columns: 1fr;
+  }
+  .file-duration-row .duration-status {
+    justify-content: flex-start;
   }
 }
