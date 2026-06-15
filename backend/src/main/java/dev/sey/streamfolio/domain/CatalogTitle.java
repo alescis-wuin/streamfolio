@@ -99,6 +99,35 @@ public class CatalogTitle {
         return this;
     }
 
+    public void updateMetadata(String slug, String title, int releaseYear, String maturityRating,
+                               int runtimeMinutes, String tagline, String synopsis, String posterPath,
+                               String backdropPath, int displayPriority, Set<String> genres) {
+        this.slug = slug;
+        this.title = title;
+        this.releaseYear = releaseYear;
+        this.maturityRating = maturityRating;
+        this.runtimeMinutes = runtimeMinutes;
+        this.tagline = tagline;
+        this.synopsis = synopsis;
+        this.posterPath = posterPath;
+        this.backdropPath = backdropPath;
+        this.displayPriority = displayPriority;
+        this.genres.clear();
+        this.genres.addAll(genres);
+    }
+
+    public void updateImages(String posterPath, String backdropPath) {
+        this.posterPath = posterPath;
+        this.backdropPath = backdropPath;
+    }
+
+    public void setType(ContentType type) {
+        this.type = type;
+    }
+
+    public void setRuntimeMinutes(int runtimeMinutes) {
+        this.runtimeMinutes = runtimeMinutes;
+    }
 
     public void refreshFrom(CatalogTitle source) {
         this.title = source.title;
