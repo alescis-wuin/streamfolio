@@ -1,6 +1,9 @@
 package dev.sey.streamfolio.admin;
 
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -17,9 +20,11 @@ import org.springframework.web.multipart.MultipartFile;
 @RequestMapping("/api/admin/videos")
 public class AdminMediaController {
     private final AdminMediaService adminMedia;
+    private final AdminVideoProbeService probes;
 
-    public AdminMediaController(AdminMediaService adminMedia) {
+    public AdminMediaController(AdminMediaService adminMedia, AdminVideoProbeService probes) {
         this.adminMedia = adminMedia;
+        this.probes = probes;
     }
 
     @GetMapping
@@ -32,12 +37,27 @@ public class AdminMediaController {
         return adminMedia.videos(query, type, genre, sort, page, size);
     }
 
-    @PostMapping(consumes = "multipart/form-data")
+    @PostMapping(path = "/probe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public AdminVideoProbeResponse probe(@RequestPart MultipartFile media) {
+        return probes.probe(media);
+    }
+
+    @PostMapping(path = "/thumbnail", consumes = MediaType.MULTIPART_FORM_DATA_VALUE, produces = MediaType.IMAGE_JPEG_VALUE)
+    public ResponseEntity<byte[]> thumbnail(@RequestParam(required = false) Double timestampSeconds,
+                                            @RequestPart MultipartFile media) {
+        byte[] thumbnail = probes.thumbnail(media, timestampSeconds);
+        return ResponseEntity.ok()
+            .contentType(MediaType.IMAGE_JPEG)
+            .header(HttpHeaders.CONTENT_DISPOSITION, "inline; filename=\"thumbnail.jpg\"")
+            .body(thumbnail);
+    }
+
+    @PostMapping(consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @ResponseStatus(HttpStatus.CREATED)
     public AdminVideoDto upload(@RequestParam String title,
-                                @RequestParam Integer releaseYear,
-                                @RequestParam String genres,
-                                @RequestParam String synopsis,
+                                @RequestParam(required = false) Integer releaseYear,
+                                @RequestParam(required = false) String genres,
+                                @RequestParam(required = false) String synopsis,
                                 @RequestParam(required = false) String tagline,
                                 @RequestParam(required = false) String maturityRating,
                                 @RequestParam(required = false) Integer runtimeMinutes,
@@ -45,9 +65,9 @@ public class AdminMediaController {
                                 @RequestParam(required = false) String label,
                                 @RequestParam(required = false) Integer durationSeconds,
                                 @RequestPart MultipartFile media,
-                                @RequestPart MultipartFile subtitles,
-                                @RequestPart MultipartFile poster,
-                                @RequestPart MultipartFile backdrop) {
+                                @RequestPart(required = false) MultipartFile subtitles,
+                                @RequestPart(required = false) MultipartFile poster,
+                                @RequestPart(required = false) MultipartFile backdrop) {
         return adminMedia.upload(
             title, releaseYear, genres, synopsis, tagline, maturityRating, runtimeMinutes,
             videoTitle, label, durationSeconds, media, subtitles, poster, backdrop

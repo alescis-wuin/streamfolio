@@ -2,10 +2,12 @@ import { escapeHtml, progressBar } from './utils.js';
 
 const VIDEO_ACCEPT = [
   'video/*',
-  '.mp4', '.m4v', '.mov', '.wmv', '.mkv', '.webm', '.avi', '.flv', '.f4v', '.swf',
-  '.mts', '.m2ts', '.ts', '.mpeg', '.mpg', '.mpe', '.m2v', '.vob', '.ogv', '.3gp', '.3g2', '.mxf'
+  '.mp4', '.m4v', '.mov', '.qt', '.wmv', '.asf', '.mkv', '.webm', '.avi', '.divx',
+  '.flv', '.f4v', '.swf', '.mts', '.m2ts', '.ts', '.m2t', '.mpeg', '.mpg', '.mpe',
+  '.m1v', '.m2v', '.m2p', '.ps', '.vob', '.ogv', '.ogg', '.3gp', '.3g2', '.mxf',
+  '.dv', '.rm', '.rmvb', '.mod', '.tod', '.dat'
 ].join(',');
-const FORMAT_HINT = 'MP4, MOV, WMV, MKV, WebM/HTML5, AVI, FLV, F4V, SWF, AVCHD, MPEG-2, etc.';
+const FORMAT_HINT = 'MP4, MOV, WMV, MKV, WebM/HTML5, AVI, FLV, F4V, SWF, AVCHD, MPEG-2, MPEG-TS, OGV, 3GP, MXF, DV, RealMedia, MOD/TOD, etc.';
 const DEFAULT_YEAR = new Date().getFullYear();
 
 export async function renderMediaAdmin(api) {
@@ -45,7 +47,7 @@ export async function renderMediaAdminUpload() {
       <div class='admin-hero'>
         <p class='eyebrow'>Nouvel asset</p>
         <h1 id='admin-upload-title'>Upload vidéo</h1>
-        <p class='lead'>Crée une entrée de catalogue depuis un fichier vidéo, ses sous-titres, son affiche et son arrière-plan.</p>
+        <p class='lead'>Crée une entrée de catalogue depuis un fichier vidéo. Seuls le fichier vidéo et le titre sont obligatoires.</p>
         <div class='admin-actions'>
           <a class='btn ghost' href='#/admin'>Retour à l’administration</a>
         </div>
@@ -69,8 +71,12 @@ export async function handleMediaAdminSubmit(event, api, route) {
   if (upload) {
     event.preventDefault();
     const body = new FormData(upload);
-    ['durationSeconds', 'runtimeMinutes'].forEach((key) => {
+    ['durationSeconds', 'runtimeMinutes', 'releaseYear', 'genres', 'synopsis', 'tagline', 'maturityRating', 'videoTitle', 'label'].forEach((key) => {
       if (!String(body.get(key) || '').trim()) body.delete(key);
+    });
+    ['subtitles', 'poster', 'backdrop'].forEach((key) => {
+      const file = body.get(key);
+      if (!(file instanceof File) || !file.name || file.size <= 0) body.delete(key);
     });
     await api('/api/admin/videos', { method: 'POST', body });
     location.hash = '#/admin';
@@ -201,13 +207,21 @@ function uploadView() {
       <form class='admin-form admin-upload-form' data-upload-form enctype='multipart/form-data'>
         <div class='admin-field'>
           <label for='upload-media'>Fichier vidéo</label>
-          <input id='upload-media' name='media' type='file' accept='${VIDEO_ACCEPT}' data-media-file required>
+          <div class='file-duration-row'>
+            <input id='upload-media' name='media' type='file' accept='${VIDEO_ACCEPT}' data-media-file required>
+            <output class='duration-status' data-duration-status for='upload-media' aria-label='Durée détectée'>00:00</output>
+          </div>
           <p class='field-help'>Formats acceptés : ${FORMAT_HINT}</p>
         </div>
+        <section class='metadata-panel' data-metadata-panel hidden>
+          <span>Métadonnées détectées</span>
+          <p class='field-help' data-metadata-status></p>
+          <dl data-metadata-list></dl>
+        </section>
         <div class='admin-field'><label for='upload-title'>Titre</label><input id='upload-title' name='title' data-autofill-field required></div>
-        <div class='admin-field'><label for='upload-year'>Année</label><input id='upload-year' name='releaseYear' type='number' min='1888' value='${DEFAULT_YEAR}' data-autofill-field required></div>
-        <div class='admin-field'><label for='upload-genres'>Genres</label><input id='upload-genres' name='genres' placeholder='Science, Drame' data-autofill-field required></div>
-        <div class='admin-field'><label for='upload-synopsis'>Description</label><textarea id='upload-synopsis' name='synopsis' rows='5' data-autofill-field required></textarea></div>
+        <div class='admin-field'><label for='upload-year'>Année</label><input id='upload-year' name='releaseYear' type='number' min='1888' max='${DEFAULT_YEAR + 2}' placeholder='${DEFAULT_YEAR}' data-autofill-field></div>
+        <div class='admin-field'><label for='upload-genres'>Genres</label><input id='upload-genres' name='genres' placeholder='Science, Drame' data-autofill-field></div>
+        <div class='admin-field'><label for='upload-synopsis'>Description</label><textarea id='upload-synopsis' name='synopsis' rows='5' data-autofill-field placeholder='Optionnel'></textarea></div>
         <div class='admin-field'>
           <div class='field-label-row'>
             <label for='upload-tagline'>Tagline</label>
@@ -224,16 +238,13 @@ function uploadView() {
         <input name='durationSeconds' type='hidden' data-duration-seconds>
         <input name='runtimeMinutes' type='hidden' data-runtime-minutes>
         <div class='admin-field'>
-          <span>Durée détectée</span>
-          <p class='duration-status' data-duration-status>Choisis un fichier vidéo pour détecter la durée automatiquement.</p>
-        </div>
-        <div class='admin-field'>
           <label for='upload-subtitles'>Sous-titres VTT</label>
-          <input id='upload-subtitles' name='subtitles' type='file' accept='.vtt,text/vtt' required>
+          <input id='upload-subtitles' name='subtitles' type='file' accept='.vtt,text/vtt'>
+          <p class='field-help'>Optionnel. Un fichier VTT vide sera généré si aucun sous-titre n’est fourni.</p>
         </div>
         <div class='admin-field'>
           <label for='upload-poster'>Affiche / miniature</label>
-          <input id='upload-poster' name='poster' type='file' accept='image/*' data-image-preview data-preview-target='poster' required>
+          <input id='upload-poster' name='poster' type='file' accept='image/*' data-image-preview data-preview-target='poster'>
           <div class='admin-preview-frame'><img data-preview='poster' alt='Prévisualisation de l’affiche' hidden></div>
         </div>
         <div class='admin-field thumbnail-picker'>
@@ -242,11 +253,11 @@ function uploadView() {
             <input id='thumbnail-time' type='number' min='0' step='0.1' placeholder='Timestamp en secondes' data-thumbnail-time disabled>
             <button class='btn ghost' type='button' data-capture-thumbnail disabled>Utiliser ce timestamp</button>
           </div>
-          <p class='field-help' data-thumbnail-status>Disponible après sélection d’un fichier vidéo lisible par le navigateur.</p>
+          <p class='field-help' data-thumbnail-status>Disponible après sélection d’un fichier vidéo.</p>
         </div>
         <div class='admin-field'>
           <label for='upload-backdrop'>Arrière-plan</label>
-          <input id='upload-backdrop' name='backdrop' type='file' accept='image/*' data-image-preview data-preview-target='backdrop' required>
+          <input id='upload-backdrop' name='backdrop' type='file' accept='image/*' data-image-preview data-preview-target='backdrop'>
           <div class='admin-preview-frame admin-preview-wide'><img data-preview='backdrop' alt='Prévisualisation de l’arrière-plan' hidden></div>
         </div>
         <div class='admin-actions'>
@@ -262,63 +273,96 @@ function handleMediaFile(input) {
   const form = input.closest('[data-upload-form]');
   const file = input.files?.[0];
   setThumbnailControls(form, Boolean(file));
-  if (!form || !file) {
-    setDuration(form, null);
-    return;
-  }
+  setDuration(form, null);
+  clearMetadata(form);
+  if (!form || !file) return;
 
   const derivedTitle = titleFromFilename(file.name);
   const derivedYear = yearFromFilename(file.name);
   setAutoValue(form.elements.title, derivedTitle);
   setAutoValue(form.elements.videoTitle, derivedTitle);
   setAutoValue(form.elements.label, 'Film');
-  setAutoValue(form.elements.genres, 'Demo');
-  setAutoValue(form.elements.synopsis, `Description à compléter pour ${derivedTitle}.`);
-  setAutoValue(form.elements.maturityRating, 'TV-PG');
   if (derivedYear) setAutoValue(form.elements.releaseYear, String(derivedYear));
 
-  detectDuration(form, file);
+  probeMediaMetadata(form, file);
 }
 
-function detectDuration(form, file) {
-  const status = form.querySelector('[data-duration-status]');
-  setDuration(form, null);
-  status.textContent = 'Lecture des métadonnées vidéo…';
-  const video = document.createElement('video');
-  const objectUrl = URL.createObjectURL(file);
-  video.preload = 'metadata';
-  video.muted = true;
-  video.src = objectUrl;
-  video.addEventListener('loadedmetadata', () => {
-    const seconds = Math.max(1, Math.round(Number(video.duration) || 0));
-    URL.revokeObjectURL(objectUrl);
-    if (!Number.isFinite(seconds) || seconds < 1) {
-      status.textContent = 'Durée non lisible par le navigateur ; le backend tentera de l’extraire.';
-      return;
-    }
-    setDuration(form, seconds);
-    status.textContent = `${formatSeconds(seconds)} détecté automatiquement.`;
-  }, { once: true });
-  video.addEventListener('error', () => {
-    URL.revokeObjectURL(objectUrl);
-    status.textContent = 'Durée non lisible par le navigateur ; le backend tentera de l’extraire.';
-  }, { once: true });
+async function probeMediaMetadata(form, file) {
+  const status = form.querySelector('[data-metadata-status]');
+  const panel = form.querySelector('[data-metadata-panel]');
+  if (panel) panel.hidden = false;
+  if (status) status.textContent = 'Extraction des métadonnées…';
+  const body = new FormData();
+  body.append('media', file, file.name);
+  try {
+    const response = await fetch('/api/admin/videos/probe', { method: 'POST', credentials: 'same-origin', body });
+    if (!response.ok) throw new Error('Métadonnées indisponibles.');
+    const metadata = await response.json();
+    setDuration(form, metadata.durationSeconds || null);
+    applyMetadata(form, metadata);
+    renderMetadata(form, metadata);
+    if (status) status.textContent = metadata.durationSeconds ? 'Métadonnées extraites depuis le fichier.' : 'Aucune durée exploitable trouvée.';
+  } catch (error) {
+    setDuration(form, null);
+    renderMetadata(form, { error: error.message || 'Métadonnées indisponibles.' });
+    if (status) status.textContent = 'Métadonnées indisponibles.';
+  }
+}
+
+function applyMetadata(form, metadata) {
+  setAutoValue(form.elements.title, metadata.title);
+  setAutoValue(form.elements.videoTitle, metadata.title);
+  setAutoValue(form.elements.synopsis, metadata.description);
+  if (metadata.releaseDate) {
+    const year = String(metadata.releaseDate).match(/(?:19|20)\d{2}/)?.[0];
+    if (year) setAutoValue(form.elements.releaseYear, year);
+  }
+}
+
+function renderMetadata(form, metadata) {
+  const panel = form.querySelector('[data-metadata-panel]');
+  const list = form.querySelector('[data-metadata-list]');
+  if (!panel || !list) return;
+  panel.hidden = false;
+  const rows = [];
+  if (metadata.error) rows.push(['Statut', metadata.error]);
+  if (metadata.title) rows.push(['Titre', metadata.title]);
+  if (metadata.description) rows.push(['Description', metadata.description]);
+  if (metadata.authors?.length) rows.push(['Auteurs', metadata.authors.join(', ')]);
+  if (metadata.releaseDate) rows.push(['Date', metadata.releaseDate]);
+  if (metadata.formatLongName || metadata.formatName) rows.push(['Format', metadata.formatLongName || metadata.formatName]);
+  if (metadata.encoder) rows.push(['Encodeur', metadata.encoder]);
+  list.innerHTML = rows.length
+    ? rows.map(([label, value]) => `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value)}</dd></div>`).join('')
+    : '<div><dt>Statut</dt><dd>Aucune métadonnée exploitable.</dd></div>';
+}
+
+function clearMetadata(form) {
+  const panel = form?.querySelector('[data-metadata-panel]');
+  const list = form?.querySelector('[data-metadata-list]');
+  const status = form?.querySelector('[data-metadata-status]');
+  if (panel) panel.hidden = true;
+  if (list) list.innerHTML = '';
+  if (status) status.textContent = '';
 }
 
 function setDuration(form, seconds) {
   const duration = form?.querySelector('[data-duration-seconds]');
   const runtime = form?.querySelector('[data-runtime-minutes]');
   const thumbnailTime = form?.querySelector('[data-thumbnail-time]');
+  const status = form?.querySelector('[data-duration-status]');
+  const cleanSeconds = Number(seconds) > 0 ? Math.round(Number(seconds)) : null;
+  if (status) status.textContent = formatClock(cleanSeconds);
   if (!duration || !runtime) return;
-  if (!seconds) {
+  if (!cleanSeconds) {
     duration.value = '';
     runtime.value = '';
     thumbnailTime?.removeAttribute('max');
     return;
   }
-  duration.value = String(seconds);
-  runtime.value = String(Math.max(1, Math.ceil(seconds / 60)));
-  if (thumbnailTime) thumbnailTime.max = String(seconds);
+  duration.value = String(cleanSeconds);
+  runtime.value = String(Math.max(1, Math.ceil(cleanSeconds / 60)));
+  if (thumbnailTime) thumbnailTime.max = String(cleanSeconds);
 }
 
 function setThumbnailControls(form, enabled) {
@@ -326,7 +370,7 @@ function setThumbnailControls(form, enabled) {
     element.disabled = !enabled;
   });
   const status = form?.querySelector('[data-thumbnail-status]');
-  if (status) status.textContent = enabled ? 'Indique un timestamp en secondes puis génère l’affiche depuis la vidéo.' : 'Disponible après sélection d’un fichier vidéo lisible par le navigateur.';
+  if (status) status.textContent = enabled ? 'Indique un timestamp en secondes puis génère l’affiche depuis la vidéo.' : 'Disponible après sélection d’un fichier vidéo.';
 }
 
 async function captureThumbnail(button) {
@@ -342,7 +386,12 @@ async function captureThumbnail(button) {
   status.textContent = 'Extraction de l’image…';
   button.disabled = true;
   try {
-    const thumbnail = await frameFileFromVideo(file, requestedTime);
+    const body = new FormData();
+    body.append('media', file, file.name);
+    const response = await fetch(`/api/admin/videos/thumbnail?timestampSeconds=${encodeURIComponent(requestedTime)}`, { method: 'POST', credentials: 'same-origin', body });
+    if (!response.ok) throw new Error('Impossible d’extraire une image depuis ce fichier.');
+    const blob = await response.blob();
+    const thumbnail = new File([blob], `${filenameStem(file.name)}-thumbnail.jpg`, { type: 'image/jpeg' });
     const transfer = new DataTransfer();
     transfer.items.add(thumbnail);
     posterInput.files = transfer.files;
@@ -355,53 +404,18 @@ async function captureThumbnail(button) {
   }
 }
 
-async function frameFileFromVideo(file, requestedTime) {
-  const objectUrl = URL.createObjectURL(file);
-  const video = document.createElement('video');
-  video.preload = 'metadata';
-  video.muted = true;
-  video.playsInline = true;
-  video.src = objectUrl;
-  try {
-    await waitForMedia(video, 'loadedmetadata');
-    const duration = Number.isFinite(video.duration) ? video.duration : requestedTime;
-    video.currentTime = Math.min(Math.max(0, requestedTime), Math.max(0, duration - 0.05));
-    await waitForMedia(video, 'seeked');
-    const width = video.videoWidth || 1280;
-    const height = video.videoHeight || 720;
-    const canvas = document.createElement('canvas');
-    canvas.width = width;
-    canvas.height = height;
-    canvas.getContext('2d').drawImage(video, 0, 0, width, height);
-    const blob = await new Promise((resolve, reject) => canvas.toBlob((value) => value ? resolve(value) : reject(new Error('Capture image impossible.')), 'image/jpeg', 0.92));
-    return new File([blob], `${filenameStem(file.name)}-thumbnail.jpg`, { type: 'image/jpeg' });
-  } catch (error) {
-    throw new Error('Ce format ne peut pas être prévisualisé par le navigateur pour l’extraction de miniature.');
-  } finally {
-    URL.revokeObjectURL(objectUrl);
-  }
-}
-
-function waitForMedia(element, eventName) {
-  return new Promise((resolve, reject) => {
-    const cleanup = () => {
-      element.removeEventListener(eventName, onEvent);
-      element.removeEventListener('error', onError);
-    };
-    const onEvent = () => { cleanup(); resolve(); };
-    const onError = () => { cleanup(); reject(new Error('Erreur de lecture média.')); };
-    element.addEventListener(eventName, onEvent, { once: true });
-    element.addEventListener('error', onError, { once: true });
-  });
-}
-
 function updateImagePreview(input) {
   const form = input.closest('[data-upload-form]');
   const previewName = input.dataset.previewTarget;
   const image = form?.querySelector(`[data-preview='${previewName}']`);
   const file = input.files?.[0];
-  if (!image || !file) return;
+  if (!image) return;
   if (image.dataset.objectUrl) URL.revokeObjectURL(image.dataset.objectUrl);
+  if (!file) {
+    image.hidden = true;
+    image.removeAttribute('src');
+    return;
+  }
   const objectUrl = URL.createObjectURL(file);
   image.dataset.objectUrl = objectUrl;
   image.src = objectUrl;
@@ -434,12 +448,16 @@ function yearFromFilename(filename) {
   return match ? Number(match[1]) : null;
 }
 
-function formatSeconds(totalSeconds) {
+function formatClock(totalSeconds) {
   const total = Math.max(0, Number(totalSeconds) || 0);
   const hours = Math.floor(total / 3600);
   const minutes = Math.floor((total % 3600) / 60);
   const seconds = total % 60;
-  return [hours ? `${hours} h` : '', minutes ? `${minutes} min` : '', `${seconds} s`].filter(Boolean).join(' ');
+  return hours > 0 ? `${hours}:${pad2(minutes)}:${pad2(seconds)}` : `${pad2(minutes)}:${pad2(seconds)}`;
+}
+
+function pad2(value) {
+  return String(value).padStart(2, '0');
 }
 
 function toggleTooltip(button) {
