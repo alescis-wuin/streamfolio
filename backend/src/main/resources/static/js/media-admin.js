@@ -33,6 +33,15 @@ export async function renderMediaAdmin(api) {
 }
 
 export async function handleMediaAdminSubmit(event, api, route) {
+  const filter = event.target.closest('[data-admin-filter]');
+  if (filter) {
+    event.preventDefault();
+    const params = new URLSearchParams(new FormData(filter));
+    [...params.keys()].forEach((key) => { if (!params.get(key)) params.delete(key); });
+    location.hash = `#/admin${params.toString() ? `?${params.toString()}` : ''}`;
+    return true;
+  }
+
   const upload = event.target.closest('[data-upload-form]');
   if (upload) {
     event.preventDefault();
@@ -111,7 +120,7 @@ function adminParams() {
 
 function filtersView(params) {
   return `
-    <form class='admin-form admin-filter-form' action='#/admin'>
+    <form class='admin-form admin-filter-form' data-admin-filter>
       <label>Recherche <input name='query' type='search' value='${escapeHtml(params.get('query') || '')}' placeholder='titre, genre, fichier'></label>
       <label>Type <select name='type'><option value=''>Tous</option>${option('MOVIE', 'Films', params.get('type'))}${option('SERIES', 'Séries', params.get('type'))}</select></label>
       <label>Tri <select name='sort'>${['title,asc', 'title,desc', 'releaseYear,desc', 'videoTitle,asc', 'duration,desc', 'assetStatus,asc'].map((value) => option(value, value, params.get('sort'))).join('')}</select></label>
