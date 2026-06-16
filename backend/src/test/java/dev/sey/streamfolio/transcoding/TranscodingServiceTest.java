@@ -39,7 +39,9 @@ class TranscodingServiceTest {
             new MediaStorageService("local", tempDir.toString()),
             new FakeFfmpegService(),
             Duration.ofSeconds(5),
-            4
+            4,
+            "none",
+            "h264_nvenc"
         );
     }
 

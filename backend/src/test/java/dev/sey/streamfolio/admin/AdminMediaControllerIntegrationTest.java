@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.request.MockMvcRequestBuilder
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.sey.streamfolio.catalog.CatalogService;
 import dev.sey.streamfolio.domain.CatalogVideo;
 import dev.sey.streamfolio.repository.CatalogVideoRepository;
 import jakarta.servlet.http.Cookie;
@@ -41,6 +42,9 @@ class AdminMediaControllerIntegrationTest {
 
     @Autowired
     private CatalogVideoRepository videos;
+
+    @Autowired
+    private CatalogService catalogService;
 
     private MockMvc mockMvc;
 
@@ -106,6 +110,17 @@ class AdminMediaControllerIntegrationTest {
         assertThat(video.getAssetFilename()).matches("[a-f0-9]{64}\\.avi");
         assertThat(video.getSubtitleFilename()).matches("[a-f0-9]{64}\\.vtt");
         assertThat(Files.exists(MEDIA_ROOT.resolve("subtitles").resolve(video.getSubtitleFilename()))).isTrue();
+    }
+
+    @Test
+    void latestUploadedVideoIsPromotedInCatalogOrder() throws Exception {
+        Cookie session = login();
+
+        upload(session, "Admin Recommendation First", "first recommendation media");
+        upload(session, "Admin Recommendation Latest", "latest recommendation media");
+
+        assertThat(catalogService.catalog(null, null, null, null).get(0).title())
+            .isEqualTo("Admin Recommendation Latest");
     }
 
     @Test

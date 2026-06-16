@@ -1,12 +1,14 @@
 package dev.sey.streamfolio.auth;
 
 import dev.sey.streamfolio.domain.UserAccount;
+import dev.sey.streamfolio.domain.UserRole;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -38,9 +40,17 @@ public class AuthFilter extends OncePerRequestFilter {
         UsernamePasswordAuthenticationToken authentication = new UsernamePasswordAuthenticationToken(
             user,
             null,
-            List.of(new SimpleGrantedAuthority("ROLE_USER"))
+            authorities(user)
         );
         authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
         SecurityContextHolder.getContext().setAuthentication(authentication);
+    }
+
+    private List<SimpleGrantedAuthority> authorities(UserAccount user) {
+        Set<UserRole> roles = user.getRoles().isEmpty() ? Set.of(UserRole.USER) : user.getRoles();
+        return roles.stream()
+            .map(UserRole::authority)
+            .map(SimpleGrantedAuthority::new)
+            .toList();
     }
 }

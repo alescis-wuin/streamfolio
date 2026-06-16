@@ -17,5 +17,8 @@ public interface TranscodeJobRepository extends JpaRepository<TranscodeJob, Long
     @Query("select job from TranscodeJob job where job.id = :id")
     Optional<TranscodeJob> findWithVideoById(@Param("id") Long id);
 
+    @EntityGraph(attributePaths = {"video", "video.title"})
+    List<TranscodeJob> findByParentJobIdOrderByRequestedAtAscIdAsc(Long parentJobId);
+
     void deleteByVideo(CatalogVideo video);
 }

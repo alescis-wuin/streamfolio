@@ -11,8 +11,6 @@ import dev.sey.streamfolio.common.BadRequestException;
 import dev.sey.streamfolio.domain.CatalogTitle;
 import dev.sey.streamfolio.domain.CatalogVideo;
 import dev.sey.streamfolio.domain.ContentType;
-import dev.sey.streamfolio.domain.MediaAsset;
-import dev.sey.streamfolio.domain.MediaAssetStatus;
 import dev.sey.streamfolio.domain.TranscodeJob;
 import dev.sey.streamfolio.domain.TranscodeJobStatus;
 import dev.sey.streamfolio.repository.MediaAssetRepository;
@@ -53,46 +51,39 @@ class TranscodeJobWorkerTest {
         video = new CatalogVideo(0, 0, "Film", "Worker Video", 12, "worker.mp4", "worker.vtt");
         title.addVideo(video);
         ReflectionTestUtils.setField(video, "id", 7L);
-        job = new TranscodeJob(video, true);
+        job = new TranscodeJob(video, true, "360p", null);
         ReflectionTestUtils.setField(job, "id", 11L);
     }
 
     @Test
-    void marksJobDoneAndAssetReadyWhenTranscodingSucceeds() {
+    void marksVariantJobDoneWhenTranscodingSucceeds() {
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
-        when(mediaStorage.thumbnailManifest(7L)).thenReturn(Path.of("thumbs/manifest.json"));
-        when(assets.findByVideo(video)).thenReturn(Optional.empty());
-        when(transcodingService.transcodeToHlsAndThumbnails(eq(7L), eq(true), any()))
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
             .thenAnswer(invocation -> {
-                TranscodingService.ProgressReporter reporter = invocation.getArgument(2);
+                TranscodingService.ProgressReporter reporter = invocation.getArgument(3);
                 reporter.report(45, "milieu");
-                return new HlsTranscodeResult(7L, true, Path.of("source.mp4"), Path.of("hls/7"), Path.of("hls/7/master.m3u8"), "ok");
+                return new HlsTranscodeResult(7L, true, Path.of("source.mp4"), Path.of("hls/7"), Path.of("hls/7/360p/playlist.m3u8"), "ok");
             });
 
         worker.run(11L);
 
         assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.DONE);
         assertThat(job.getProgressPercent()).isEqualTo(100);
-        verify(assets).save(any(MediaAsset.class));
         verify(jobs, atLeast(3)).save(job);
     }
 
     @Test
-    void marksJobAndAssetFailedWhenTranscodingFails() {
-        MediaAsset asset = new MediaAsset(video);
-        asset.markReady("hls/master.m3u8", "thumbs/manifest.json");
+    void marksVariantJobFailedWhenTranscodingFails() {
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
-        when(assets.findByVideo(video)).thenReturn(Optional.of(asset));
-        when(transcodingService.transcodeToHlsAndThumbnails(eq(7L), eq(true), any()))
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
             .thenThrow(new BadRequestException("ffmpeg failed"));
 
         worker.run(11L);
 
         assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.FAILED);
         assertThat(job.getMessage()).contains("ffmpeg failed");
-        assertThat(asset.getStatus()).isEqualTo(MediaAssetStatus.FAILED);
-        verify(assets).save(asset);
+        verify(jobs, atLeast(2)).save(job);
     }
 }

@@ -6,7 +6,9 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.time.Duration;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.stereotype.Service;
 public class FfmpegService {
     private final String binary;
     private final Duration probeTimeout;
+    private final Map<String, Boolean> encoderAvailability = new ConcurrentHashMap<>();
 
     public FfmpegService(@Value("${streamfolio.ffmpeg.binary:ffmpeg}") String binary,
                          @Value("${streamfolio.ffmpeg.probe-timeout:PT5S}") Duration probeTimeout) {
@@ -32,6 +35,14 @@ public class FfmpegService {
         } catch (IOException exception) {
             return FfmpegStatus.unavailable(binary, exception.getMessage());
         }
+    }
+
+    public boolean hasEncoder(String encoder) {
+        if (encoder == null || encoder.isBlank()) {
+            return false;
+        }
+        String normalized = encoder.trim();
+        return encoderAvailability.computeIfAbsent(normalized, this::probeEncoder);
     }
 
     public CommandResult runOrThrow(List<String> command, Duration timeout) {
@@ -70,6 +81,15 @@ public class FfmpegService {
             Thread.currentThread().interrupt();
             process.destroyForcibly();
             return new CommandResult(-1, outputNow(output), true);
+        }
+    }
+
+    private boolean probeEncoder(String encoder) {
+        try {
+            CommandResult result = run(List.of(binary, "-hide_banner", "-encoders"), probeTimeout);
+            return result.exitCode() == 0 && result.output().contains(encoder);
+        } catch (IOException exception) {
+            return false;
         }
     }
 

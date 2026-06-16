@@ -8,6 +8,7 @@ import dev.sey.streamfolio.domain.MediaAssetStatus;
 import dev.sey.streamfolio.domain.TranscodeJob;
 import dev.sey.streamfolio.repository.MediaAssetRepository;
 import dev.sey.streamfolio.repository.TranscodeJobRepository;
+import java.util.ArrayList;
 import java.util.List;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,15 +21,18 @@ public class TranscodeJobService {
     private final TranscodeJobRepository jobs;
     private final MediaAssetRepository assets;
     private final TranscodeJobWorker worker;
+    private final TranscodingService transcodingService;
 
     public TranscodeJobService(CatalogService catalogService,
                                TranscodeJobRepository jobs,
                                MediaAssetRepository assets,
-                               TranscodeJobWorker worker) {
+                               TranscodeJobWorker worker,
+                               TranscodingService transcodingService) {
         this.catalogService = catalogService;
         this.jobs = jobs;
         this.assets = assets;
         this.worker = worker;
+        this.transcodingService = transcodingService;
     }
 
     @Transactional
@@ -36,13 +40,24 @@ public class TranscodeJobService {
         CatalogVideo video = catalogService.findVideo(videoId);
         MediaAsset asset = assets.findByVideo(video).orElseGet(() -> assets.save(new MediaAsset(video)));
         if (!force && asset.getStatus() == MediaAssetStatus.READY) {
-            TranscodeJob job = jobs.save(new TranscodeJob(video, false));
+            TranscodeJob job = jobs.save(new TranscodeJob(video, false, TranscodeJob.WORK_ITEM_READY, null));
             job.markDone(asset.getHlsMasterPath(), "Asset media deja pret.");
             return TranscodeJobDto.from(jobs.save(job));
         }
-        TranscodeJob job = jobs.save(new TranscodeJob(video, force));
-        runAfterCommit(job.getId());
-        return TranscodeJobDto.from(job);
+
+        TranscodeJob parent = jobs.saveAndFlush(new TranscodeJob(video, force, TranscodeJob.WORK_ITEM_BATCH, null));
+        parent.markRunning("Planification des jobs par qualite.");
+        jobs.save(parent);
+
+        List<TranscodeJob> children = new ArrayList<>();
+        for (String variant : transcodingService.variantNames()) {
+            children.add(new TranscodeJob(video, force, variant, parent.getId()));
+        }
+        children.add(new TranscodeJob(video, force, TranscodeJob.WORK_ITEM_THUMBNAILS, parent.getId()));
+        jobs.saveAll(children);
+        jobs.flush();
+        runAfterCommit(children.stream().map(TranscodeJob::getId).toList());
+        return TranscodeJobDto.from(parent);
     }
 
     @Transactional(readOnly = true)
@@ -65,11 +80,11 @@ public class TranscodeJobService {
             .toList();
     }
 
-    private void runAfterCommit(Long jobId) {
+    private void runAfterCommit(List<Long> jobIds) {
         TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
             @Override
             public void afterCommit() {
-                worker.run(jobId);
+                jobIds.forEach(worker::run);
             }
         });
     }
