@@ -26,7 +26,7 @@ public class LoginRequest {
     }
 
     public String email() {
-        return identifier != null && !identifier.isBlank() ? identifier : email;
+        return IdentifierRules.accountEmailFor(effectiveIdentifier());
     }
 
     public void setEmail(String email) {
@@ -42,6 +42,6 @@ public class LoginRequest {
     }
 
     public String effectiveIdentifier() {
-        return email();
+        return identifier != null && !identifier.isBlank() ? identifier : email;
     }
 }
