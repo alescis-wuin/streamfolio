@@ -45,19 +45,19 @@ class RegistrationIntegrationTest {
 
     @Test
     void registeredUserGetsUserRoleOnlyAndCannotAccessAdminEndpoints() throws Exception {
-        String username = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String identifier = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"" + username + "\",\"password\":\"password123\"}"))
+                .content("{\"identifier\":\"" + identifier + "\",\"password\":\"password123\"}"))
             .andExpect(status().isOk())
-            .andExpect(jsonPath("$.user.displayName").value(username))
+            .andExpect(jsonPath("$.user.displayName").value(identifier))
             .andExpect(jsonPath("$.user.roles[0]").value("USER"))
             .andExpect(jsonPath("$.user.roles[1]").doesNotExist())
             .andExpect(cookie().exists(SESSION_COOKIE))
             .andReturn();
 
-        users.findByEmail(RegistrationService.internalEmail(username)).ifPresentOrElse(
+        users.findByEmail(RegistrationService.internalEmail(identifier)).ifPresentOrElse(
             user -> {
                 assertThat(user.getRoles()).containsExactly(UserRole.USER);
                 assertThat(user.hasRole(UserRole.ADMIN)).isFalse();
@@ -74,19 +74,52 @@ class RegistrationIntegrationTest {
     }
 
     @Test
+    void registrationAcceptsEmailIdentifier() throws Exception {
+        String identifier = "viewer" + UUID.randomUUID().toString().replace("-", "").substring(0, 12) + "@example.dev";
+
+        mockMvc.perform(post("/api/auth/register")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"" + identifier + "\",\"password\":\"password123\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.user.email").value(identifier))
+            .andExpect(jsonPath("$.user.roles[0]").value("USER"));
+    }
+
+    @Test
+    void registrationRejectsStrangeUsernameCharacters() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"bad-user\",\"password\":\"password123\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Nom d'utilisateur invalide. Utilise uniquement lettres, chiffres et underscores."));
+    }
+
+    @Test
+    void registrationRejectsInvalidEmailIdentifier() throws Exception {
+        mockMvc.perform(post("/api/auth/register")
+                .with(csrf())
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"identifier\":\"bad@example\",\"password\":\"password123\"}"))
+            .andExpect(status().isBadRequest())
+            .andExpect(jsonPath("$.message").value("Adresse e-mail invalide."));
+    }
+
+    @Test
     void registrationRequiresCsrfToken() throws Exception {
-        String username = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String identifier = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
 
         mockMvc.perform(post("/api/auth/register")
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"username\":\"" + username + "\",\"password\":\"password123\"}"))
+                .content("{\"identifier\":\"" + identifier + "\",\"password\":\"password123\"}"))
             .andExpect(status().isForbidden());
     }
 
     @Test
-    void duplicateUsernameIsRejected() throws Exception {
-        String username = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
-        String payload = "{\"username\":\"" + username + "\",\"password\":\"password123\"}";
+    void duplicateIdentifierIsRejected() throws Exception {
+        String identifier = "viewer_" + UUID.randomUUID().toString().replace("-", "").substring(0, 12);
+        String payload = "{\"identifier\":\"" + identifier + "\",\"password\":\"password123\"}";
 
         mockMvc.perform(post("/api/auth/register")
                 .with(csrf())
@@ -99,6 +132,6 @@ class RegistrationIntegrationTest {
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(payload))
             .andExpect(status().isBadRequest())
-            .andExpect(jsonPath("$.message").value("Nom d'utilisateur déjà utilisé."));
+            .andExpect(jsonPath("$.message").value("Identifiant déjà utilisé."));
     }
 }
