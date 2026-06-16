@@ -57,6 +57,35 @@ test.describe('Streamfolio e2e', () => {
     await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
   });
 
+  test('inscription : le nouveau compte USER ne voit pas et ne peut pas utiliser l’administration', async ({ page }) => {
+    const username = `viewer_${Date.now()}`;
+
+    await page.goto('/');
+    await expect(page.getByRole('heading', { name: 'Connexion' })).toBeVisible();
+    await page.getByRole('link', { name: 'Créer un compte utilisateur' }).click();
+    await expect(page.getByRole('heading', { name: 'Inscription' })).toBeVisible();
+
+    await page.getByLabel("Nom d'utilisateur").fill(username);
+    await page.getByLabel('Mot de passe').fill('password123');
+    await page.getByRole('button', { name: 'Créer le compte' }).click();
+
+    await expect(page.getByRole('navigation', { name: 'Navigation principale' })).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
+
+    const me = await page.request.get('/api/me');
+    expect(me.status()).toBe(200);
+    const mePayload = await me.json();
+    expect(mePayload.displayName).toBe(username);
+    expect(mePayload.roles).toEqual(['USER']);
+
+    const adminApi = await page.request.get('/api/admin/videos');
+    expect(adminApi.status()).toBe(403);
+
+    await page.goto('/#/admin');
+    await expect(page).toHaveURL(/#\/$/);
+    await expect(page.getByRole('link', { name: 'Admin' })).toHaveCount(0);
+  });
+
   test('les endpoints vidéo protégés refusent un utilisateur déconnecté', async ({ page }) => {
     await login(page);
 
