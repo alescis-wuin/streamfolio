@@ -92,8 +92,8 @@
     location.reload();
   }
 
-  async function protectAdminUi() {
-    const user = await loadUser(false);
+  async function protectAdminUi(forceUserRefresh = false) {
+    const user = await loadUser(forceUserRefresh);
     if (!user || hasAdminRole(user)) return;
     document.querySelectorAll("a[href^='#/admin']").forEach((link) => link.remove());
     if ((location.hash || '').startsWith('#/admin')) {
@@ -102,8 +102,10 @@
   }
 
   async function sync() {
-    if ((location.hash || '') === '#/register') {
-      const user = await loadUser(false);
+    const hash = location.hash || '';
+    const shellVisible = Boolean(document.querySelector('.app-shell'));
+    if (hash === '#/register') {
+      const user = await loadUser(shellVisible);
       if (user) {
         location.hash = '#/';
         return;
@@ -112,7 +114,7 @@
       return;
     }
     enhanceLoginPage();
-    protectAdminUi();
+    protectAdminUi(shellVisible && !document.querySelector('[data-login-form]'));
   }
 
   document.addEventListener('submit', async (event) => {
@@ -130,6 +132,10 @@
   });
 
   document.addEventListener('click', (event) => {
+    if (event.target.closest('[data-logout]')) {
+      userCache = undefined;
+      window.setTimeout(sync, 0);
+    }
     if (event.target.closest('[data-show-register]')) {
       event.preventDefault();
       location.hash = '#/register';
