@@ -1,0 +1,14 @@
+services:
+  streamfolio:
+    environment:
+      NVIDIA_VISIBLE_DEVICES: ${NVIDIA_VISIBLE_DEVICES:-all}
+      NVIDIA_DRIVER_CAPABILITIES: ${NVIDIA_DRIVER_CAPABILITIES:-compute,video,utility}
+      STREAMFOLIO_FFMPEG_HARDWARE_ACCELERATION: ${STREAMFOLIO_FFMPEG_HARDWARE_ACCELERATION:-auto}
+      STREAMFOLIO_FFMPEG_NVIDIA_ENCODER: ${STREAMFOLIO_FFMPEG_NVIDIA_ENCODER:-h264_nvenc}
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
