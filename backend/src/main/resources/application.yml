@@ -11,8 +11,7 @@ spring:
       max-file-size: 4GB
       max-request-size: 5GB
   datasource:
-    # Base volatile pour une V1 de démonstration : évite les conflits de schéma H2/Hibernate
-    # entre deux lancements locaux. Voir README pour l'option persistante.
+    # Volatile development database. Use the docker or postgres profile for durable data.
     url: jdbc:h2:mem:streamfolio;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     driver-class-name: org.h2.Driver
     username: sa
@@ -23,12 +22,13 @@ spring:
       path: /h2-console
   jpa:
     hibernate:
-      # create-drop est volontaire pour la démo : schéma propre à chaque démarrage.
       ddl-auto: create-drop
     open-in-view: false
     properties:
       hibernate:
         format_sql: true
+  flyway:
+    enabled: false
   web:
     resources:
       cache:
