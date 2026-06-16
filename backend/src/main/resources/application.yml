@@ -57,6 +57,10 @@ streamfolio:
     probe-timeout: PT5S
     transcode-timeout: PT5M
     hls-segment-time: 4
+    hardware-acceleration: ${STREAMFOLIO_FFMPEG_HARDWARE_ACCELERATION:auto}
+    nvidia-encoder: ${STREAMFOLIO_FFMPEG_NVIDIA_ENCODER:h264_nvenc}
+  transcoding:
+    workers: ${STREAMFOLIO_TRANSCODING_WORKERS:3}
 
 logging:
   level:
