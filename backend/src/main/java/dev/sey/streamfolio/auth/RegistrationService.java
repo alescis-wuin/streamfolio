@@ -4,15 +4,12 @@ import dev.sey.streamfolio.common.BadRequestException;
 import dev.sey.streamfolio.domain.UserAccount;
 import dev.sey.streamfolio.domain.UserRole;
 import dev.sey.streamfolio.repository.UserAccountRepository;
-import java.util.Locale;
 import java.util.Set;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 public class RegistrationService {
-    private static final String INTERNAL_DOMAIN = "users.streamfolio.local";
-
     private final UserAccountRepository users;
     private final AuthService authService;
 
@@ -23,29 +20,21 @@ public class RegistrationService {
 
     @Transactional
     public LoginResult register(RegisterRequest request) {
-        String username = normalizeUsername(request.username());
-        String email = internalEmail(username);
-        if (users.findByEmail(email).isPresent()) {
-            throw new BadRequestException("Nom d'utilisateur déjà utilisé.");
+        String identifier = request.effectiveIdentifier();
+        String accountKey = IdentifierRules.accountEmailFor(identifier);
+        if (users.findByEmail(accountKey).isPresent()) {
+            throw new BadRequestException("Identifiant déjà utilisé.");
         }
         users.saveAndFlush(new UserAccount(
-            email,
-            username,
+            accountKey,
+            IdentifierRules.displayNameFor(identifier),
             AuthService.hashPassword(request.password()),
             Set.of(UserRole.USER)
         ));
-        return authService.login(new LoginRequest(email, request.password()));
+        return authService.login(new LoginRequest(identifier, request.password()));
     }
 
     public static String internalEmail(String username) {
-        return normalizeUsername(username) + "@" + INTERNAL_DOMAIN;
-    }
-
-    private static String normalizeUsername(String username) {
-        String value = username == null ? "" : username.trim().toLowerCase(Locale.ROOT);
-        if (value.isBlank()) {
-            throw new BadRequestException("Nom d'utilisateur manquant.");
-        }
-        return value;
+        return IdentifierRules.internalEmail(username);
     }
 }
