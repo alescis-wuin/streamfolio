@@ -53,7 +53,7 @@ public class TranscodingService {
 
     public HlsTranscodeResult transcodeToHlsAndThumbnails(Long videoId, boolean force, ProgressReporter progress) {
         if (mediaStorage.mode() != MediaStorageMode.LOCAL) {
-            throw new BadRequestException("Transcodage HLS disponible uniquement avec le profil local-media.");
+            throw new BadRequestException("Transcodage HLS disponible uniquement avec le stockage media local.");
         }
 
         CatalogVideo video = catalogService.findVideo(videoId);
