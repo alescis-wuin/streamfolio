@@ -1,9 +1,11 @@
 package dev.sey.streamfolio.admin;
 
+import java.util.List;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -35,6 +37,18 @@ public class AdminMediaController {
                                          @RequestParam(required = false) Integer page,
                                          @RequestParam(required = false) Integer size) {
         return adminMedia.videos(query, type, genre, sort, page, size);
+    }
+
+    @GetMapping("/ids")
+    public List<Long> videoIds(@RequestParam(required = false) String query,
+                               @RequestParam(required = false) String type,
+                               @RequestParam(required = false) String genre) {
+        return adminMedia.videoIds(query, type, genre);
+    }
+
+    @GetMapping("/{videoId}")
+    public AdminVideoDto video(@PathVariable Long videoId) {
+        return adminMedia.video(videoId);
     }
 
     @PostMapping(path = "/probe", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
@@ -92,5 +106,11 @@ public class AdminMediaController {
     @PutMapping("/{videoId}/order")
     public AdminVideoDto order(@PathVariable Long videoId, @RequestBody(required = false) AdminVideoOrderRequest request) {
         return adminMedia.order(videoId, request);
+    }
+
+    @DeleteMapping("/{videoId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable Long videoId) {
+        adminMedia.delete(videoId);
     }
 }

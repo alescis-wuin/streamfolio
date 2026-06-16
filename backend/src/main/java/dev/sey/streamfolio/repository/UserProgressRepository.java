@@ -14,4 +14,6 @@ public interface UserProgressRepository extends JpaRepository<UserProgress, Long
 
     @EntityGraph(attributePaths = {"video"})
     List<UserProgress> findByUser(UserAccount user);
+
+    void deleteByVideo(CatalogVideo video);
 }

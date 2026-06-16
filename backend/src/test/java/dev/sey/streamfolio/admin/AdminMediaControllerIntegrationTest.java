@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.matchesPattern;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.csrf;
 import static org.springframework.security.test.web.servlet.setup.SecurityMockMvcConfigurers.springSecurity;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -191,6 +192,39 @@ class AdminMediaControllerIntegrationTest {
             .andExpect(status().isOk())
             .andExpect(jsonPath("$.type").value("MOVIE"))
             .andExpect(jsonPath("$.seasonNumber").value(0));
+    }
+
+    @Test
+    void listsReadsAndDeletesAdminVideo() throws Exception {
+        Cookie session = login();
+        UploadedVideo removed = upload(session, "Admin Removed", "delete media");
+
+        mockMvc.perform(get("/api/admin/videos/ids")
+                .param("query", "Admin Removed")
+                .cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$[0]").value(removed.videoId()));
+
+        mockMvc.perform(get("/api/admin/videos/" + removed.videoId()).cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.title").value("Admin Removed"))
+            .andExpect(jsonPath("$.videoId").value(removed.videoId()));
+
+        mockMvc.perform(delete("/api/admin/videos/" + removed.videoId())
+                .with(csrf())
+                .cookie(session))
+            .andExpect(status().isNoContent());
+
+        mockMvc.perform(get("/api/admin/videos/" + removed.videoId()).cookie(session))
+            .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/admin/videos")
+                .param("query", "Admin Removed")
+                .param("page", "0")
+                .param("size", "10")
+                .cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.pagination.totalElements").value(0));
     }
 
     private UploadedVideo upload(Cookie session, String title, String mediaContent) throws Exception {

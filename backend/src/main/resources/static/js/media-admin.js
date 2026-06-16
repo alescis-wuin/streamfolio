@@ -1,4 +1,4 @@
-import { escapeHtml, progressBar } from './utils.js';
+import { escapeHtml, labelType, progressBar } from './utils.js';
 
 const VIDEO_ACCEPT = [
   'video/*',
@@ -17,6 +17,8 @@ const RECENT_JOB_FALLBACK_LIMIT = 5;
 let jobsApi = null;
 let jobsPollTimer = null;
 let jobsRefreshInFlight = false;
+let currentVisibleVideoIds = [];
+const selectedVideoIds = new Set();
 
 export async function renderMediaAdmin(api) {
   const params = adminParams();
@@ -25,33 +27,42 @@ export async function renderMediaAdmin(api) {
   }
 
   stopJobsPolling();
-  const [videoPage, assets] = await Promise.all([
-    api(`/api/admin/videos?${params.toString()}`).catch(() => ({ items: [], pagination: { number: 0, size: 20, totalElements: 0, totalPages: 0 } })),
-    api('/api/admin/media/assets').catch(() => []),
-  ]);
+  const videoPage = await api(`/api/admin/videos?${params.toString()}`)
+    .catch(() => ({ items: [], pagination: { number: 0, size: 20, totalElements: 0, totalPages: 0 } }));
+  currentVisibleVideoIds = (videoPage.items || []).map((video) => Number(video.videoId)).filter(Boolean);
+  window.setTimeout(updateSelectionUi, 0);
+
   return `
-    <section class='admin-page' aria-labelledby='admin-title'>
+    <section class='admin-page admin-video-page' aria-labelledby='admin-title'>
       <div class='admin-hero'>
         <p class='eyebrow'>Pipeline média</p>
         <h1 id='admin-title'>Administration vidéo</h1>
-        <p class='lead'>Gère le catalogue, les fichiers locaux, les assets et les regroupements film/série.</p>
+        <p class='lead'>Gère le catalogue, les fichiers locaux et les regroupements film/série depuis une table de travail compacte.</p>
         ${filtersView(params)}
+        ${selectionToolbar(videoPage, params)}
       </div>
-      <div class='admin-grid admin-grid-wide'>
-        <section class='admin-panel admin-panel-main'>
-          <h2>Vidéos</h2>
-          ${videoPage.items?.length ? `<div class='admin-table'>${videoPage.items.map(videoView).join('')}</div>${paginationView(videoPage.pagination, params)}` : `<p class='muted'>Aucune vidéo ne correspond aux critères.</p>`}
-        </section>
-        <aside class='admin-panel'>
-          <div class='admin-actions'>
-            <h2>Assets média</h2>
-            <a class='btn ghost' href='#/admin?view=jobs'>Voir les jobs</a>
+      <section class='admin-panel admin-panel-main'>
+        <div class='admin-panel-heading'>
+          <div>
+            <h2>Vidéos</h2>
+            <p class='muted'>${videoPage.pagination?.totalElements ?? 0} vidéo(s) trouvée(s). La sélection est conservée entre recherches, filtres et actualisations.</p>
           </div>
-          ${assets.length ? `<div class='admin-table compact'>${assets.map(assetView).join('')}</div>` : `<p class='muted'>Aucun asset enregistré.</p>`}
-        </aside>
-      </div>
+          <div class='admin-actions'>
+            <a class='btn ghost' href='#/admin?view=jobs'>Jobs</a>
+            <a class='btn primary' href='#/admin/upload'>Ajouter une vidéo</a>
+          </div>
+        </div>
+        ${videoPage.items?.length ? `${videosTableView(videoPage.items, params)}${paginationView(videoPage.pagination, params)}` : `<p class='muted'>Aucune vidéo ne correspond aux critères.</p>`}
+      </section>
     </section>
   `;
+}
+
+export async function renderMediaAdminVideoDetail(api, videoId, params = new URLSearchParams()) {
+  stopJobsPolling();
+  const video = await api(`/api/admin/videos/${Number(videoId)}`);
+  window.setTimeout(updateSelectionUi, 0);
+  return videoDetailView(video, params);
 }
 
 export async function renderMediaAdminUpload() {
@@ -78,6 +89,7 @@ export async function handleMediaAdminSubmit(event, api, route) {
     event.preventDefault();
     const params = new URLSearchParams(new FormData(filter));
     [...params.keys()].forEach((key) => { if (!params.get(key)) params.delete(key); });
+    params.set('page', '0');
     location.hash = `#/admin${params.toString() ? `?${params.toString()}` : ''}`;
     return true;
   }
@@ -95,6 +107,30 @@ export async function handleMediaAdminSubmit(event, api, route) {
     });
     await api('/api/admin/videos', { method: 'POST', body });
     location.hash = '#/admin';
+    route();
+    return true;
+  }
+
+  const bulkLink = event.target.closest('[data-bulk-link]');
+  if (bulkLink) {
+    event.preventDefault();
+    const ids = selectedIds();
+    if (!ids.length) return setSelectionStatus('Aucune vidéo sélectionnée.');
+    const data = formObject(bulkLink);
+    const targetTitleId = Number(data.targetTitleId);
+    const seasonNumber = Number(data.seasonNumber) || 1;
+    const firstEpisode = Number(data.firstEpisodeNumber) || 1;
+    if (!targetTitleId) return setSelectionStatus('ID de série cible manquant.');
+    await runBulk(ids, (id, index) => api(`/api/admin/videos/${id}/link`, {
+      method: 'POST',
+      body: JSON.stringify({
+        targetTitleId,
+        seasonNumber,
+        episodeNumber: firstEpisode + index,
+        label: `S${seasonNumber}:E${firstEpisode + index}`,
+      }),
+    }));
+    setSelectionStatus(`${ids.length} vidéo(s) liée(s) à la série ${targetTitleId}.`);
     route();
     return true;
   }
@@ -142,7 +178,7 @@ export async function handleMediaAdminSubmit(event, api, route) {
   return false;
 }
 
-export async function handleMediaAdminClick(event, route) {
+export async function handleMediaAdminClick(event, api, route) {
   const tooltip = event.target.closest('[data-tooltip-toggle]');
   if (tooltip) {
     event.preventDefault();
@@ -170,17 +206,108 @@ export async function handleMediaAdminClick(event, route) {
     route();
     return true;
   }
-  const unlink = event.target.closest('[data-admin-unlink]');
-  if (unlink) {
+
+  const selectFiltered = event.target.closest('[data-select-filtered]');
+  if (selectFiltered) {
     event.preventDefault();
-    await fetch(`/api/admin/videos/${unlink.dataset.videoId}/unlink`, { method: 'POST', credentials: 'same-origin' });
+    await selectFilteredVideos(api, true);
+    return true;
+  }
+
+  const deselectFiltered = event.target.closest('[data-deselect-filtered]');
+  if (deselectFiltered) {
+    event.preventDefault();
+    await selectFilteredVideos(api, false);
+    return true;
+  }
+
+  const clearSelection = event.target.closest('[data-clear-selection]');
+  if (clearSelection) {
+    event.preventDefault();
+    selectedVideoIds.clear();
+    updateSelectionUi();
+    setSelectionStatus('Sélection vidée.');
+    return true;
+  }
+
+  const bulkTranscode = event.target.closest('[data-bulk-transcode]');
+  if (bulkTranscode) {
+    event.preventDefault();
+    const ids = selectedIds();
+    if (!ids.length) return setSelectionStatus('Aucune vidéo sélectionnée.');
+    await runBulk(ids, (id) => api(`/api/admin/media/videos/${id}/transcode`, { method: 'POST', body: JSON.stringify({ force: false }) }));
+    setSelectionStatus(`${ids.length} job(s) de transcodage lancé(s).`);
+    location.hash = '#/admin?view=jobs';
     route();
     return true;
   }
+
+  const bulkUnlink = event.target.closest('[data-bulk-unlink]');
+  if (bulkUnlink) {
+    event.preventDefault();
+    const ids = selectedIds();
+    if (!ids.length) return setSelectionStatus('Aucune vidéo sélectionnée.');
+    await runBulk(ids, (id) => api(`/api/admin/videos/${id}/unlink`, { method: 'POST' }));
+    setSelectionStatus(`${ids.length} vidéo(s) déliée(s).`);
+    route();
+    return true;
+  }
+
+  const bulkDelete = event.target.closest('[data-bulk-delete]');
+  if (bulkDelete) {
+    event.preventDefault();
+    const ids = selectedIds();
+    if (!ids.length) return setSelectionStatus('Aucune vidéo sélectionnée.');
+    if (!window.confirm(`Supprimer définitivement ${ids.length} vidéo(s) ?`)) return true;
+    await runBulk(ids, (id) => api(`/api/admin/videos/${id}`, { method: 'DELETE' }));
+    ids.forEach((id) => selectedVideoIds.delete(id));
+    updateSelectionUi();
+    setSelectionStatus(`${ids.length} vidéo(s) supprimée(s).`);
+    route();
+    return true;
+  }
+
+  const unlink = event.target.closest('[data-admin-unlink]');
+  if (unlink) {
+    event.preventDefault();
+    await api(`/api/admin/videos/${unlink.dataset.videoId}/unlink`, { method: 'POST' });
+    route();
+    return true;
+  }
+
+  const deleteOne = event.target.closest('[data-admin-delete]');
+  if (deleteOne) {
+    event.preventDefault();
+    const videoId = Number(deleteOne.dataset.videoId);
+    if (!window.confirm('Supprimer définitivement cette vidéo ?')) return true;
+    await api(`/api/admin/videos/${videoId}`, { method: 'DELETE' });
+    selectedVideoIds.delete(videoId);
+    location.hash = '#/admin';
+    route();
+    return true;
+  }
+
   return false;
 }
 
 export function handleMediaAdminInput(event) {
+  const rowSelect = event.target.closest('[data-video-select]');
+  if (rowSelect) {
+    const videoId = Number(rowSelect.value);
+    if (rowSelect.checked) selectedVideoIds.add(videoId); else selectedVideoIds.delete(videoId);
+    updateSelectionUi();
+    return true;
+  }
+
+  const visibleSelect = event.target.closest('[data-select-visible]');
+  if (visibleSelect) {
+    currentVisibleVideoIds.forEach((id) => {
+      if (visibleSelect.checked) selectedVideoIds.add(id); else selectedVideoIds.delete(id);
+    });
+    updateSelectionUi();
+    return true;
+  }
+
   const changedField = event.target.closest('[data-autofill-field]');
   if (changedField && event.isTrusted) changedField.dataset.autofilled = 'false';
 
@@ -346,7 +473,6 @@ function adminParams() {
   const params = new URLSearchParams(query);
   if (!params.has('page')) params.set('page', '0');
   if (!params.has('size')) params.set('size', '10');
-  if (!params.has('sort')) params.set('sort', 'title,asc');
   return params;
 }
 
@@ -355,8 +481,9 @@ function filtersView(params) {
     <form class='admin-form admin-filter-form' data-admin-filter>
       <label>Recherche <input name='query' type='search' value='${escapeHtml(params.get('query') || '')}' placeholder='titre, genre, fichier'></label>
       <label>Type <select name='type'><option value=''>Tous</option>${option('MOVIE', 'Films', params.get('type'))}${option('SERIES', 'Séries', params.get('type'))}</select></label>
-      <label>Tri <select name='sort'>${['title,asc', 'title,desc', 'releaseYear,desc', 'videoTitle,asc', 'duration,desc', 'assetStatus,asc'].map((value) => option(value, value, params.get('sort'))).join('')}</select></label>
+      <label>Genre <input name='genre' value='${escapeHtml(params.get('genre') || '')}' placeholder='Botanique'></label>
       <label>Taille <input name='size' type='number' min='1' max='100' value='${escapeHtml(params.get('size') || '10')}'></label>
+      ${params.get('sort') ? `<input name='sort' type='hidden' value='${escapeHtml(params.get('sort'))}'>` : ''}
       <input name='page' type='hidden' value='0'>
       <button class='btn primary' type='submit'>Filtrer</button>
       <a class='btn ghost' href='#/admin'>Réinitialiser</a>
@@ -364,6 +491,240 @@ function filtersView(params) {
       <a class='btn ghost' href='#/admin?view=jobs'>Jobs</a>
     </form>
   `;
+}
+
+function selectionToolbar(videoPage, params) {
+  const total = Number(videoPage.pagination?.totalElements || 0);
+  const disabled = selectedVideoIds.size === 0 ? ' disabled' : '';
+  return `
+    <section class='admin-selection-bar' data-admin-selection aria-label='Sélection des vidéos'>
+      <div class='admin-selection-summary'>
+        <strong><span data-selected-count>${selectedVideoIds.size}</span> vidéo(s) sélectionnée(s)</strong>
+        <span class='muted'>${total} résultat(s) dans le filtre courant.</span>
+        <span class='muted' data-selection-status></span>
+      </div>
+      <div class='admin-selection-actions'>
+        <button class='btn ghost' type='button' data-select-filtered>Sélectionner le filtre</button>
+        <button class='btn ghost' type='button' data-deselect-filtered>Désélectionner le filtre</button>
+        <button class='btn ghost' type='button' data-clear-selection${disabled}>Vider</button>
+        <button class='btn ghost' type='button' data-bulk-transcode data-selection-required${disabled}>Transcoder</button>
+        <button class='btn ghost' type='button' data-bulk-unlink data-selection-required${disabled}>Délier</button>
+        <button class='btn danger' type='button' data-bulk-delete data-selection-required${disabled}>Supprimer</button>
+      </div>
+      <form class='admin-form admin-bulk-link-form' data-bulk-link>
+        <label>Série cible <input name='targetTitleId' type='number' min='1' placeholder='ID titre' required></label>
+        <label>Saison <input name='seasonNumber' type='number' min='0' value='1'></label>
+        <label>Premier épisode <input name='firstEpisodeNumber' type='number' min='0' value='1'></label>
+        <button class='btn ghost' type='submit' data-selection-required${disabled}>Lier en saison</button>
+      </form>
+    </section>
+  `;
+}
+
+function videosTableView(videos, params) {
+  const allVisibleSelected = videos.length > 0 && videos.every((video) => selectedVideoIds.has(Number(video.videoId)));
+  const someVisibleSelected = videos.some((video) => selectedVideoIds.has(Number(video.videoId)));
+  return `
+    <div class='admin-table-scroll'>
+      <table class='admin-video-table'>
+        <thead>
+          <tr>
+            <th class='admin-select-column'>
+              <label class='sr-only' for='admin-select-visible'>Sélectionner les vidéos visibles</label>
+              <input id='admin-select-visible' type='checkbox' data-select-visible${allVisibleSelected ? ' checked' : ''} data-indeterminate='${someVisibleSelected && !allVisibleSelected}'>
+            </th>
+            ${sortHeader('Vidéo', 'title', params)}
+            ${sortHeader('Type', 'type', params)}
+            ${sortHeader('Date', 'releaseYear', params)}
+            ${sortHeader('Genre', 'genre', params)}
+            ${sortHeader('Description', 'synopsis', params)}
+            ${sortHeader('Statut de transcodage', 'assetStatus', params)}
+            <th class='admin-actions-column'><span class='sr-only'>Actions</span></th>
+          </tr>
+        </thead>
+        <tbody>
+          ${videos.map(videoRowView).join('')}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function videoRowView(video) {
+  const videoId = Number(video.videoId);
+  const selected = selectedVideoIds.has(videoId);
+  return `
+    <tr class='admin-video-table-row${selected ? ' is-selected' : ''}' data-video-row='${videoId}'>
+      <td class='admin-select-column'>
+        <label class='sr-only' for='video-select-${videoId}'>Sélectionner la vidéo ${escapeHtml(video.title)}</label>
+        <input id='video-select-${videoId}' type='checkbox' value='${videoId}' data-video-select${selected ? ' checked' : ''}>
+      </td>
+      <td>${videoCardView(video)}</td>
+      <td><span class='pill'>${escapeHtml(labelType(video.type))}</span></td>
+      <td>${escapeHtml(video.releaseYear || '—')}</td>
+      <td>${genresView(video.genres)}</td>
+      <td><p class='admin-description-cell'>${escapeHtml(video.synopsis || '—')}</p></td>
+      <td><span class='status-pill status-${String(video.assetStatus || 'no_asset').toLowerCase()}'>${escapeHtml(video.assetStatus || 'NO_ASSET')}</span></td>
+      <td class='admin-row-actions-cell'>
+        <div class='admin-video-row-actions'>
+          <a class='btn small ghost' href='#/admin/videos/${videoId}?mode=edit'>Éditer</a>
+          <a class='btn small ghost' href='#/admin/videos/${videoId}'>Détail</a>
+        </div>
+      </td>
+    </tr>
+  `;
+}
+
+function videoCardView(video) {
+  return `
+    <a class='admin-video-card' href='#/admin/videos/${Number(video.videoId)}' aria-label='Afficher le détail admin de ${escapeHtml(video.title)}'>
+      <img src='${escapeHtml(video.posterPath)}' alt='' aria-hidden='true' loading='lazy'>
+      <span class='admin-video-card-title'>${escapeHtml(video.title)}</span>
+      <span class='admin-video-card-subtitle'>${escapeHtml(video.videoTitle || video.label || '')}</span>
+    </a>
+  `;
+}
+
+function genresView(genres = []) {
+  if (!genres.length) return '<span class=\'muted\'>—</span>';
+  return `<div class='admin-genre-cell'>${genres.map((genre) => `<span class='pill'>${escapeHtml(genre)}</span>`).join('')}</div>`;
+}
+
+function sortHeader(label, field, params) {
+  const state = sortState(params, field);
+  const ariaSort = state === 'asc' ? 'ascending' : state === 'desc' ? 'descending' : 'none';
+  return `<th aria-sort='${ariaSort}'><a class='admin-sort-link${state ? ' active' : ''}' href='${sortHref(params, field)}'>${escapeHtml(label)}${state ? `<span class='sort-arrow sort-${state}' aria-hidden='true'></span>` : ''}</a></th>`;
+}
+
+function sortState(params, field) {
+  const [currentField, direction] = String(params.get('sort') || '').split(',');
+  if (currentField !== field) return '';
+  return direction === 'desc' ? 'desc' : 'asc';
+}
+
+function sortHref(params, field) {
+  const next = new URLSearchParams(params);
+  const state = sortState(params, field);
+  next.delete('view');
+  next.set('page', '0');
+  if (!state) next.set('sort', `${field},asc`);
+  else if (state === 'asc') next.set('sort', `${field},desc`);
+  else next.delete('sort');
+  return `#/admin?${next.toString()}`;
+}
+
+function videoDetailView(video, params) {
+  const editing = params.get('mode') === 'edit';
+  const videoId = Number(video.videoId);
+  const selected = selectedVideoIds.has(videoId);
+  return `
+    <section class='admin-page admin-video-detail-page' aria-labelledby='admin-video-detail-title'>
+      <div class='admin-hero admin-video-detail-hero'>
+        <div>
+          <p class='eyebrow'>Détail vidéo</p>
+          <h1 id='admin-video-detail-title'>${escapeHtml(video.title)}</h1>
+          <p class='lead'>${escapeHtml(video.synopsis || 'Description non renseignée.')}</p>
+          <div class='admin-actions'>
+            <a class='btn ghost' href='#/admin'>Retour aux vidéos</a>
+            <a class='btn ghost' href='#/title/${escapeHtml(video.slug)}'>Fiche catalogue</a>
+            <a class='btn ghost' href='#/admin/videos/${videoId}${editing ? '' : '?mode=edit'}'>${editing ? 'Quitter l’édition' : 'Éditer'}</a>
+          </div>
+        </div>
+        <label class='admin-detail-selection'>
+          <input type='checkbox' value='${videoId}' data-video-select${selected ? ' checked' : ''}>
+          <span><span data-selected-count>${selectedVideoIds.size}</span> vidéo(s) sélectionnée(s)</span>
+        </label>
+      </div>
+      <div class='admin-grid admin-grid-wide'>
+        <section class='admin-panel admin-panel-main'>
+          ${editing ? editDetailView(video) : metadataDetailView(video)}
+        </section>
+        <aside class='admin-panel'>
+          ${sideDetailView(video)}
+        </aside>
+      </div>
+    </section>
+  `;
+}
+
+function metadataDetailView(video) {
+  return `
+    <h2>Informations</h2>
+    <div class='admin-detail-card'>
+      <img src='${escapeHtml(video.posterPath)}' alt='Affiche de ${escapeHtml(video.title)}'>
+      <dl class='admin-detail-list'>
+        ${detailRow('ID vidéo', video.videoId)}
+        ${detailRow('ID titre', video.titleId)}
+        ${detailRow('Slug', video.slug)}
+        ${detailRow('Type', labelType(video.type))}
+        ${detailRow('Date', video.releaseYear)}
+        ${detailRow('Classification', video.maturityRating)}
+        ${detailRow('Durée catalogue', `${video.runtimeMinutes} min`)}
+        ${detailRow('Label', video.label)}
+        ${detailRow('Titre vidéo', video.videoTitle)}
+        ${detailRow('Saison', video.seasonNumber)}
+        ${detailRow('Épisode', video.episodeNumber)}
+        ${detailRow('Durée vidéo', formatClock(video.durationSeconds))}
+        ${detailRow('Genres', (video.genres || []).join(', '))}
+      </dl>
+    </div>
+  `;
+}
+
+function sideDetailView(video) {
+  return `
+    <h2>Fichier et actions</h2>
+    <dl class='admin-detail-list'>
+      ${detailRow('Statut', video.assetStatus || 'NO_ASSET')}
+      ${detailRow('Fichier', video.assetFilename)}
+      ${detailRow('Sous-titres', video.subtitleFilename)}
+      ${detailRow('Type MIME', video.contentType || '—')}
+      ${detailRow('Taille', `${video.sizeBytes || 0} octets`)}
+      ${detailRow('SHA-256', video.contentSha256 || 'non enregistré')}
+    </dl>
+    <form data-transcode-form class='admin-form admin-inline-form'>
+      <input name='videoId' type='hidden' value='${video.videoId}'>
+      <label class='checkline'><input name='force' type='checkbox'> forcer</label>
+      <button class='btn primary' type='submit'>Transcoder</button>
+    </form>
+    <form class='admin-form admin-inline-form' data-admin-link data-video-id='${video.videoId}'>
+      <label>ID titre cible <input name='targetTitleId' type='number' min='1' required></label>
+      <label>Saison <input name='seasonNumber' type='number' min='0' value='${video.seasonNumber || 1}'></label>
+      <label>Épisode <input name='episodeNumber' type='number' min='0' value='${video.episodeNumber || 1}'></label>
+      <button class='btn ghost' type='submit'>Lier</button>
+    </form>
+    <form class='admin-form admin-inline-form' data-admin-order data-video-id='${video.videoId}'>
+      <label>Saison <input name='seasonNumber' type='number' min='0' value='${video.seasonNumber}'></label>
+      <label>Épisode <input name='episodeNumber' type='number' min='0' value='${video.episodeNumber}'></label>
+      <button class='btn ghost' type='submit'>Réordonner</button>
+    </form>
+    <div class='admin-actions'>
+      <button class='btn ghost' type='button' data-admin-unlink data-video-id='${video.videoId}'>Délier</button>
+      <button class='btn danger' type='button' data-admin-delete data-video-id='${video.videoId}'>Supprimer</button>
+    </div>
+  `;
+}
+
+function editDetailView(video) {
+  return `
+    <h2>Édition</h2>
+    <form class='admin-form admin-detail-edit-form' data-admin-edit data-video-id='${video.videoId}'>
+      <label>Titre <input name='title' value='${escapeHtml(video.title)}'></label>
+      <label>Année <input name='releaseYear' type='number' value='${video.releaseYear}'></label>
+      <label>Genres <input name='genres' value='${escapeHtml((video.genres || []).join(', '))}'></label>
+      <label>Description <textarea name='synopsis'>${escapeHtml(video.synopsis || '')}</textarea></label>
+      <label>Titre vidéo <input name='videoTitle' value='${escapeHtml(video.videoTitle)}'></label>
+      <label>Label <input name='label' value='${escapeHtml(video.label)}'></label>
+      <label>Saison <input name='seasonNumber' type='number' min='0' value='${video.seasonNumber}'></label>
+      <label>Épisode <input name='episodeNumber' type='number' min='0' value='${video.episodeNumber}'></label>
+      <label>Durée s <input name='durationSeconds' type='number' min='1' value='${video.durationSeconds}'></label>
+      <button class='btn primary' type='submit'>Enregistrer</button>
+    </form>
+  `;
+}
+
+function detailRow(label, value) {
+  return `<div><dt>${escapeHtml(label)}</dt><dd>${escapeHtml(value ?? '—')}</dd></div>`;
 }
 
 function uploadView() {
@@ -588,6 +949,54 @@ function updateImagePreview(input) {
   image.hidden = false;
 }
 
+async function selectFilteredVideos(api, select) {
+  const params = selectionParams(adminParams());
+  const ids = await api(`/api/admin/videos/ids${params.toString() ? `?${params.toString()}` : ''}`);
+  ids.map(Number).filter(Boolean).forEach((id) => {
+    if (select) selectedVideoIds.add(id); else selectedVideoIds.delete(id);
+  });
+  updateSelectionUi();
+  setSelectionStatus(`${ids.length} vidéo(s) ${select ? 'sélectionnée(s)' : 'désélectionnée(s)'} dans le filtre courant.`);
+}
+
+function selectionParams(params) {
+  const next = new URLSearchParams(params);
+  ['page', 'size', 'sort', 'view'].forEach((key) => next.delete(key));
+  return next;
+}
+
+function updateSelectionUi() {
+  const count = selectedVideoIds.size;
+  document.querySelectorAll('[data-selected-count]').forEach((node) => { node.textContent = String(count); });
+  document.querySelectorAll('[data-selection-required], [data-clear-selection]').forEach((node) => { node.disabled = count === 0; });
+  document.querySelectorAll('[data-video-select]').forEach((checkbox) => {
+    const checked = selectedVideoIds.has(Number(checkbox.value));
+    checkbox.checked = checked;
+    checkbox.closest('[data-video-row]')?.classList.toggle('is-selected', checked);
+  });
+  document.querySelectorAll('[data-select-visible]').forEach((checkbox) => {
+    const visibleIds = currentVisibleVideoIds;
+    const selectedVisible = visibleIds.filter((id) => selectedVideoIds.has(id)).length;
+    checkbox.checked = visibleIds.length > 0 && selectedVisible === visibleIds.length;
+    checkbox.indeterminate = selectedVisible > 0 && selectedVisible < visibleIds.length;
+  });
+}
+
+function setSelectionStatus(message) {
+  document.querySelectorAll('[data-selection-status]').forEach((node) => { node.textContent = message; });
+  return true;
+}
+
+function selectedIds() {
+  return [...selectedVideoIds].map(Number).filter(Boolean).sort((a, b) => a - b);
+}
+
+async function runBulk(ids, operation) {
+  for (const [index, id] of ids.entries()) {
+    await operation(id, index);
+  }
+}
+
 function setAutoValue(field, value) {
   if (!field || !value) return;
   if (!field.value || field.dataset.autofilled === 'true') {
@@ -637,49 +1046,6 @@ function toggleTooltip(button) {
   button.setAttribute('aria-expanded', String(nextOpen));
 }
 
-function videoView(video) {
-  return `
-    <article class='admin-row admin-video-row'>
-      <div>
-        <strong>#${video.videoId} · ${escapeHtml(video.title)}</strong>
-        <p>${escapeHtml(video.videoTitle)} · ${escapeHtml(video.type)} · ${video.releaseYear} · ${escapeHtml((video.genres || []).join(', '))}</p>
-        <p>${escapeHtml(video.assetFilename)} · ${video.sizeBytes || 0} octets · SHA ${escapeHtml(video.contentSha256 || 'non enregistré')}</p>
-        <div class='admin-actions'>
-          <form data-transcode-form><input name='videoId' type='hidden' value='${video.videoId}'><label class='checkline'><input name='force' type='checkbox'> force</label><button class='btn ghost' type='submit'>Transcoder</button></form>
-          <button class='btn ghost' type='button' data-admin-unlink data-video-id='${video.videoId}'>Délier</button>
-        </div>
-        <details>
-          <summary>Éditer / lier / ordonner</summary>
-          <form class='admin-form admin-inline-form' data-admin-edit data-video-id='${video.videoId}'>
-            <label>Titre <input name='title' value='${escapeHtml(video.title)}'></label>
-            <label>Année <input name='releaseYear' type='number' value='${video.releaseYear}'></label>
-            <label>Genres <input name='genres' value='${escapeHtml((video.genres || []).join(', '))}'></label>
-            <label>Description <textarea name='synopsis'>${escapeHtml(video.synopsis || '')}</textarea></label>
-            <label>Titre vidéo <input name='videoTitle' value='${escapeHtml(video.videoTitle)}'></label>
-            <label>Label <input name='label' value='${escapeHtml(video.label)}'></label>
-            <label>Saison <input name='seasonNumber' type='number' min='0' value='${video.seasonNumber}'></label>
-            <label>Épisode <input name='episodeNumber' type='number' min='0' value='${video.episodeNumber}'></label>
-            <label>Durée s <input name='durationSeconds' type='number' min='1' value='${video.durationSeconds}'></label>
-            <button class='btn primary' type='submit'>Enregistrer</button>
-          </form>
-          <form class='admin-form admin-inline-form' data-admin-link data-video-id='${video.videoId}'>
-            <label>ID titre cible <input name='targetTitleId' type='number' min='1' required></label>
-            <label>Saison <input name='seasonNumber' type='number' min='0' value='1'></label>
-            <label>Épisode <input name='episodeNumber' type='number' min='0' value='1'></label>
-            <button class='btn ghost' type='submit'>Lier</button>
-          </form>
-          <form class='admin-form admin-inline-form' data-admin-order data-video-id='${video.videoId}'>
-            <label>Saison <input name='seasonNumber' type='number' min='0' value='${video.seasonNumber}'></label>
-            <label>Épisode <input name='episodeNumber' type='number' min='0' value='${video.episodeNumber}'></label>
-            <button class='btn ghost' type='submit'>Réordonner</button>
-          </form>
-        </details>
-      </div>
-      <span class='status-pill status-${String(video.assetStatus || 'missing').toLowerCase()}'>${escapeHtml(video.assetStatus || 'NO_ASSET')}</span>
-    </article>
-  `;
-}
-
 function paginationView(pagination, params) {
   const current = Number(pagination?.number || 0);
   const total = Number(pagination?.totalPages || 0);
@@ -705,10 +1071,6 @@ function jobView(job) {
     force,
   ].filter(Boolean).join(' · ');
   return `<article class='admin-row admin-job-row' data-job-id='${job.id}'><div><strong>#${job.id} · ${escapeHtml(job.title)} — ${escapeHtml(job.videoTitle)}</strong><p>${escapeHtml(dates)}</p>${message}${progressBar(percent, 'Progression ' + percent + '%')}</div><span class='status-pill status-${status}'>${escapeHtml(job.status)}</span></article>`;
-}
-
-function assetView(asset) {
-  return `<article class='admin-row'><div><strong>${escapeHtml(asset.title)} — ${escapeHtml(asset.videoTitle)}</strong><p>${escapeHtml(asset.originalFilename)} · ${escapeHtml(asset.thumbnailManifestPath || 'pas de thumbnails')}</p></div><span class='status-pill status-${String(asset.status || '').toLowerCase()}'>${escapeHtml(asset.status)}</span></article>`;
 }
 
 function formatDateTime(value) {
