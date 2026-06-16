@@ -53,6 +53,10 @@
     return `<span class='identifier-help-wrap'><span class='identifier-help' tabindex='0' aria-label='${escapeHtml(IDENTIFIER_HELP)}'>?</span><span class='identifier-tooltip' role='tooltip'>${escapeHtml(IDENTIFIER_HELP)}</span></span>`;
   }
 
+  function identifierLabelText() {
+    return `<span class='identifier-label-row'><span>Identifiant</span><span class='sr-only'> Nom d'utilisateur</span>${identifierHelp()}</span>`;
+  }
+
   function configureIdentifierInput(input) {
     if (!input) return;
     input.type = 'text';
@@ -68,7 +72,7 @@
     if (!loginForm || loginForm.dataset.registrationEnhanced === 'true') return;
     loginForm.dataset.registrationEnhanced = 'true';
     const label = loginForm.querySelector("label[for='email']");
-    if (label) label.innerHTML = `<span class='identifier-label-row'><span>Identifiant</span>${identifierHelp()}</span>`;
+    if (label) label.innerHTML = identifierLabelText();
     configureIdentifierInput(loginForm.querySelector('#email'));
     loginForm.insertAdjacentHTML('afterend', `
       <p class='muted'>Pas encore de compte ? <a href='#/register' data-show-register>Créer un compte utilisateur</a></p>
@@ -86,7 +90,7 @@
           <p class='lead'>Crée un compte simple avec le rôle USER. Ce rôle permet de consulter le catalogue et interdit l'administration.</p>
           ${error ? `<p class='error-state' role='alert'>${escapeHtml(error)}</p>` : ''}
           <form data-register-form>
-            <div class='form-field'><label for='register-identifier'><span class='identifier-label-row'><span>Identifiant</span>${identifierHelp()}</span></label><input id='register-identifier' name='identifier' autocomplete='username' pattern='${IDENTIFIER_PATTERN}' placeholder='adresse@example.dev ou nom_utilisateur' title='${escapeHtml(IDENTIFIER_HELP)}' required></div>
+            <div class='form-field'><label for='register-identifier'>${identifierLabelText()}</label><input id='register-identifier' name='identifier' autocomplete='username' pattern='${IDENTIFIER_PATTERN}' placeholder='adresse@example.dev ou nom_utilisateur' title='${escapeHtml(IDENTIFIER_HELP)}' required></div>
             <div class='form-field'><label for='register-password'>Mot de passe</label><input id='register-password' name='password' type='password' autocomplete='new-password' minlength='8' required></div>
             <button class='btn primary' type='submit'>Créer le compte</button>
           </form>
