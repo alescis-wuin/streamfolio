@@ -1,6 +1,6 @@
 # Checklist de validation
 
-Objectif : vérifier que le dépôt est propre, que les tests backend passent, que la protection CSRF fonctionne, que le smoke test fonctionne en mode standard et que le mode `local-media` reste opérationnel avant de poursuivre les phases streaming avancées.
+Objectif : vérifier que le dépôt est propre, que les tests backend passent, que la protection CSRF fonctionne, que les rôles applicatifs sont cohérents, que le smoke test fonctionne en mode standard et que le mode `local-media` reste opérationnel avant de poursuivre les phases streaming avancées.
 
 ## 1. Validation complète automatisée
 
@@ -60,7 +60,7 @@ Démarrage standard :
 
 ```bash
 cd backend
-mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
 ```
 
 Dans un second terminal :
@@ -69,12 +69,12 @@ Dans un second terminal :
 ./scripts/smoke.sh
 ```
 
-Démarrage `local-media` :
+Démarrage média local :
 
 ```bash
 bash scripts/prepare-local-media.sh backend/data/media
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=local-media
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 ```
 
 Dans un second terminal :
@@ -94,9 +94,11 @@ Dans un second terminal :
 - `/api/videos/1/stream` sans cookie renvoie `401` ;
 - `/api/videos/1/subtitles` sans cookie renvoie `401` ;
 - `/api/videos/1/progress` sans cookie renvoie `401` si le CSRF est fourni ;
-- le JSON de login ne contient pas de token ;
+- le JSON de login ne contient pas de jeton de session ;
 - le cookie de session contient `HttpOnly` et `SameSite=Strict` ;
-- `/api/auth/logout` invalide la session ;
+- en profil `distant`, le cookie de session contient aussi `Secure` quand `STREAMFOLIO_COOKIE_SECURE=true` ;
+- `/api/auth/logout` invalide la session courante ;
+- `/api/admin/**` refuse les comptes sans rôle `ADMIN` ;
 - `/h2-console/` n'est pas accessible hors profil `dev` ;
 - `/h2-console/` est accessible avec le profil `dev`.
 
@@ -114,7 +116,7 @@ Dans un second terminal :
 Parcours recommandé dans le navigateur :
 
 1. ouvrir `http://localhost:8080` ;
-2. se connecter avec `alexis@example.dev / demo1234` ;
+2. se connecter avec le compte de démonstration ;
 3. vérifier l'accueil ;
 4. ouvrir Films et Séries ;
 5. chercher `botanical` ;
@@ -123,8 +125,9 @@ Parcours recommandé dans le navigateur :
 8. lancer une vidéo ;
 9. vérifier les sous-titres ;
 10. vérifier la reprise de progression ;
-11. se déconnecter ;
-12. vérifier qu'une URL vidéo directe n'est plus accessible.
+11. ouvrir l'administration avec un compte `ADMIN` ;
+12. se déconnecter ;
+13. vérifier qu'une URL vidéo directe n'est plus accessible.
 
 ## 7. Validation E2E
 
@@ -161,6 +164,7 @@ La CI GitHub Actions exécute :
 - installation Java ;
 - installation Node.js ;
 - installation `jq` ;
+- installation FFmpeg ;
 - `bash scripts/validate.sh` ;
 - installation des navigateurs Playwright ;
 - tests E2E Playwright ;
@@ -181,4 +185,5 @@ La phase suivante ne doit commencer que si :
 - `npm run test:e2e` passe localement ou en CI ;
 - le parcours UI ne montre pas de régression bloquante ;
 - la CI GitHub Actions est verte ;
-- les captures `home.png`, `detail.png`, `player.png`, `mobile.png` et `demo.gif` sont ajoutées ou explicitement reportées.
+- le README affiche les badges, le GIF et les captures documentées dans `docs/screenshots/README.md` ;
+- la documentation différencie clairement données PostgreSQL persistées et sessions runtime.
