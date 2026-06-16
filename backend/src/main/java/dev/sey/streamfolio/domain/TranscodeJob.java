@@ -16,6 +16,10 @@ import java.time.Instant;
 @Entity
 @Table(name = "transcode_jobs")
 public class TranscodeJob {
+    public static final String WORK_ITEM_BATCH = "batch";
+    public static final String WORK_ITEM_READY = "ready";
+    public static final String WORK_ITEM_THUMBNAILS = "thumbnails";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -34,6 +38,14 @@ public class TranscodeJob {
     @Column(nullable = false)
     private boolean force;
 
+    @Column(nullable = false, length = 48)
+    private String workItem = WORK_ITEM_BATCH;
+
+    private Long parentJobId;
+
+    @Column(length = 80)
+    private String workerName;
+
     @Column(nullable = false)
     private Instant requestedAt = Instant.now();
 
@@ -51,16 +63,28 @@ public class TranscodeJob {
     }
 
     public TranscodeJob(CatalogVideo video, boolean force) {
+        this(video, force, WORK_ITEM_BATCH, null);
+    }
+
+    public TranscodeJob(CatalogVideo video, boolean force, String workItem, Long parentJobId) {
         this.video = video;
         this.force = force;
-        this.message = "Job en attente.";
+        this.workItem = cleanWorkItem(workItem);
+        this.parentJobId = parentJobId;
+        this.message = "Job " + this.workItem + " en attente.";
     }
 
     public void markRunning(String message) {
+        markRunning(message, null);
+    }
+
+    public void markRunning(String message, String workerName) {
         this.status = TranscodeJobStatus.RUNNING;
         this.progressPercent = Math.max(progressPercent, 5);
         this.startedAt = this.startedAt == null ? Instant.now() : this.startedAt;
+        this.finishedAt = null;
         this.message = message;
+        this.workerName = workerName;
     }
 
     public void updateProgress(int progressPercent, String message) {
@@ -82,43 +106,21 @@ public class TranscodeJob {
         this.finishedAt = Instant.now();
     }
 
-    public Long getId() {
-        return id;
+    private String cleanWorkItem(String value) {
+        return value == null || value.isBlank() ? WORK_ITEM_BATCH : value.trim().toLowerCase();
     }
 
-    public CatalogVideo getVideo() {
-        return video;
-    }
-
-    public TranscodeJobStatus getStatus() {
-        return status;
-    }
-
-    public int getProgressPercent() {
-        return progressPercent;
-    }
-
-    public boolean isForce() {
-        return force;
-    }
-
-    public Instant getRequestedAt() {
-        return requestedAt;
-    }
-
-    public Instant getStartedAt() {
-        return startedAt;
-    }
-
-    public Instant getFinishedAt() {
-        return finishedAt;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public String getOutputPath() {
-        return outputPath;
-    }
+    public Long getId() { return id; }
+    public CatalogVideo getVideo() { return video; }
+    public TranscodeJobStatus getStatus() { return status; }
+    public int getProgressPercent() { return progressPercent; }
+    public boolean isForce() { return force; }
+    public String getWorkItem() { return workItem; }
+    public Long getParentJobId() { return parentJobId; }
+    public String getWorkerName() { return workerName; }
+    public Instant getRequestedAt() { return requestedAt; }
+    public Instant getStartedAt() { return startedAt; }
+    public Instant getFinishedAt() { return finishedAt; }
+    public String getMessage() { return message; }
+    public String getOutputPath() { return outputPath; }
 }
