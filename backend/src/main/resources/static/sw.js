@@ -1,4 +1,4 @@
-const CACHE_NAME = 'streamfolio-shell-v13';
+const CACHE_NAME = 'streamfolio-shell-v14';
 const SHELL = [
   '/',
   '/index.html',
@@ -43,8 +43,6 @@ self.addEventListener('activate', (event) => {
     const keys = await caches.keys();
     await Promise.all(keys.filter((key) => key !== CACHE_NAME).map((key) => caches.delete(key)));
     await self.clients.claim();
-    const clients = await self.clients.matchAll({ type: 'window' });
-    await Promise.all(clients.map((client) => client.navigate(client.url)));
   })());
 });
 
