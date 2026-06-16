@@ -1,4 +1,6 @@
 streamfolio:
   media:
     storage: local
-    root: ./data/media
+    root: ${STREAMFOLIO_MEDIA_ROOT:./data/media}
+  security:
+    cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
