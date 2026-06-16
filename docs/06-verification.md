@@ -43,6 +43,16 @@ __pycache__/
 *.pyc
 ```
 
+## Profils recommandés
+
+| Profil | Commande type | Usage |
+| --- | --- | --- |
+| `dev` | `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run` | Développement HTTP avec H2 console et cookie non `Secure` |
+| `local` | `SPRING_PROFILES_ACTIVE=local mvn spring-boot:run` | Médias locaux dans `STREAMFOLIO_MEDIA_ROOT`, cookie non `Secure` |
+| `distant,postgres` | `SPRING_PROFILES_ACTIVE=distant,postgres STREAMFOLIO_COOKIE_SECURE=true mvn spring-boot:run` | Déploiement HTTPS derrière reverse proxy |
+
+La variable correcte pour le cookie sécurisé est `STREAMFOLIO_COOKIE_SECURE`.
+
 ## Validation CSRF
 
 L'application expose un endpoint public de récupération du jeton :
@@ -63,7 +73,14 @@ Sont notamment protégés :
 - `POST /api/auth/logout` ;
 - `PUT /api/videos/{videoId}/progress` ;
 - `POST /api/titles/{titleId}/watchlist` ;
-- `DELETE /api/titles/{titleId}/watchlist`.
+- `DELETE /api/titles/{titleId}/watchlist` ;
+- `POST`, `PUT` et `DELETE` des routes d'administration.
+
+## Validation rôles
+
+- Un compte `USER` peut consulter le catalogue, lire une vidéo, gérer sa watchlist et sa progression.
+- Un compte `ADMIN` peut accéder aux routes `/api/admin/**`.
+- Une requête admin sans rôle `ADMIN` doit renvoyer `403`.
 
 ## Validation E2E Playwright
 
@@ -101,7 +118,7 @@ Déclenchements :
 
 ```bash
 cd backend
-mvn spring-boot:run
+SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run
 ```
 
 Dans un second terminal :
@@ -110,18 +127,25 @@ Dans un second terminal :
 ./scripts/smoke.sh
 ```
 
-Mode `local-media` :
+Mode local :
 
 ```bash
 bash scripts/prepare-local-media.sh backend/data/media
 cd backend
-mvn spring-boot:run -Dspring-boot.run.profiles=local-media
+SPRING_PROFILES_ACTIVE=local mvn spring-boot:run
 ```
 
 Dans un second terminal :
 
 ```bash
 ./scripts/smoke.sh
+```
+
+Mode distant HTTPS :
+
+```bash
+cd backend
+SPRING_PROFILES_ACTIVE=distant,postgres STREAMFOLIO_COOKIE_SECURE=true mvn spring-boot:run
 ```
 
 ## Critères avant phase suivante
@@ -130,4 +154,7 @@ Dans un second terminal :
 - CI verte ;
 - tests Playwright verts ;
 - parcours UI manuel sans régression bloquante ;
-- captures portfolio ajoutées dans `docs/screenshots/`.
+- README complet avec badges, GIF et captures ;
+- captures documentées dans `docs/screenshots/README.md` ;
+- différenciation documentée entre données PostgreSQL persistées et sessions runtime ;
+- accès admin réservé au rôle `ADMIN`.
