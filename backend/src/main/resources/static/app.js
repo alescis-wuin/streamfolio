@@ -257,7 +257,11 @@ async function renderPlayer(videoId) {
 }
 
 async function handleSubmit(event) {
-  if (await handleMediaAdminSubmit(event, api, route)) return;
+  const adminContentMutation = isAdminContentMutationSubmit(event);
+  if (await handleMediaAdminSubmit(event, api, route)) {
+    if (adminContentMutation) invalidateContentCache();
+    return;
+  }
   const loginForm = event.target.closest('[data-login-form]');
   if (loginForm) {
     event.preventDefault();
@@ -285,7 +289,11 @@ async function handleSubmit(event) {
 }
 
 async function handleClick(event) {
-  if (await handleMediaAdminClick(event, api, route)) return;
+  const adminContentMutation = isAdminContentMutationClick(event);
+  if (await handleMediaAdminClick(event, api, route)) {
+    if (adminContentMutation) invalidateContentCache();
+    return;
+  }
   const logoutButton = event.target.closest('[data-logout]');
   if (logoutButton) { event.preventDefault(); await logout(true); return; }
   const scrollButton = event.target.closest('[data-scroll-target]');
@@ -299,6 +307,14 @@ async function handleClick(event) {
     watchlistButton.disabled = true;
     try { await api(`/api/titles/${id}/watchlist`, { method: active ? 'DELETE' : 'POST' }); invalidateContentCache(); route(); } catch (error) { renderShell(errorView(error.message)); }
   }
+}
+
+function isAdminContentMutationSubmit(event) {
+  return Boolean(event.target.closest('[data-upload-form], [data-bulk-link], [data-admin-edit], [data-admin-link], [data-admin-order], [data-transcode-form]'));
+}
+
+function isAdminContentMutationClick(event) {
+  return Boolean(event.target.closest('[data-bulk-transcode], [data-bulk-unlink], [data-bulk-delete], [data-admin-unlink], [data-admin-delete]'));
 }
 
 function handleInput(event) {

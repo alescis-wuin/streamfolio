@@ -127,7 +127,7 @@ public class AdminMediaService {
             textOrDefault(synopsis, "Description non renseignée."),
             posterPath,
             backdropPath,
-            (int) Math.min(Integer.MAX_VALUE, titles.count() + 1)
+            nextRecommendedPriority()
         );
         parseGenres(genres).forEach(catalogTitle::addGenre);
         CatalogVideo video = new CatalogVideo(
@@ -225,7 +225,7 @@ public class AdminMediaService {
             oldTitle.getSynopsis(),
             oldTitle.getPosterPath(),
             oldTitle.getBackdropPath(),
-            (int) Math.min(Integer.MAX_VALUE, titles.count() + 1)
+            nextRecommendedPriority()
         );
         oldTitle.getGenres().forEach(standalone::addGenre);
         CatalogTitle savedStandalone = titles.saveAndFlush(standalone);
@@ -293,6 +293,14 @@ public class AdminMediaService {
         long count = videos.countByTitle(title);
         title.setType(count > 1 ? ContentType.SERIES : ContentType.MOVIE);
         titles.save(title);
+    }
+
+    private int nextRecommendedPriority() {
+        int currentMin = titles.findAll().stream()
+            .mapToInt(CatalogTitle::getDisplayPriority)
+            .min()
+            .orElse(1);
+        return currentMin == Integer.MIN_VALUE ? Integer.MIN_VALUE : currentMin - 1;
     }
 
     private boolean matches(CatalogVideo video, String normalizedQuery) {
