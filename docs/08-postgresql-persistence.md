@@ -51,6 +51,22 @@ docker compose up -d
 
 Ne pas utiliser `-v` sur une base contenant déjà des données à conserver.
 
+## FFmpeg et miniatures Docker
+
+Le backend Docker installe `ffmpeg` et `ffprobe` dans l'image runtime. Ils sont requis pour :
+
+- extraire une miniature depuis une vidéo uploadée avec un timestamp ;
+- lire les métadonnées/durées via `ffprobe` ;
+- transcoder les vidéos locales en HLS ;
+- générer les thumbnails de timeline HLS.
+
+Vérification dans le conteneur :
+
+```bash
+docker compose exec streamfolio ffmpeg -version
+docker compose exec streamfolio ffprobe -version
+```
+
 ## Lancement Maven avec PostgreSQL local/Docker
 
 Démarrer uniquement PostgreSQL :
@@ -89,6 +105,8 @@ Au démarrage des profils `postgres` et `docker` :
 | `STREAMFOLIO_POSTGRES_USER` | `streamfolio` |
 | `STREAMFOLIO_POSTGRES_PASSWORD` | `change-me` |
 | `STREAMFOLIO_MEDIA_ROOT` | `/app/data/media` |
+| `STREAMFOLIO_FFMPEG_BINARY` | `/usr/bin/ffmpeg` |
+| `STREAMFOLIO_FFMPEG_PROBE_BINARY` | `/usr/bin/ffprobe` |
 
 ## Vérification manuelle
 
@@ -97,9 +115,11 @@ Au démarrage des profils `postgres` et `docker` :
 3. Ajouter un titre à la liste.
 4. Regarder une vidéo quelques secondes.
 5. Uploader une vidéo depuis l'administration.
-6. Arrêter avec `docker compose stop`.
-7. Redémarrer avec `docker compose start`.
-8. Vérifier que la liste, la progression, les métadonnées, l'upload et les jobs sont toujours présents.
+6. Extraire une miniature depuis la vidéo uploadée avec un timestamp.
+7. Lancer un transcodage HLS.
+8. Arrêter avec `docker compose stop`.
+9. Redémarrer avec `docker compose start`.
+10. Vérifier que la liste, la progression, les métadonnées, l'upload et les jobs sont toujours présents.
 
 ## Sauvegarde rapide
 

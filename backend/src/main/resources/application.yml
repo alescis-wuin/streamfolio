@@ -53,6 +53,7 @@ streamfolio:
       max-image-size: 10MB
   ffmpeg:
     binary: ${STREAMFOLIO_FFMPEG_BINARY:ffmpeg}
+    probe-binary: ${STREAMFOLIO_FFMPEG_PROBE_BINARY:ffprobe}
     probe-timeout: PT5S
     transcode-timeout: PT5M
     hls-segment-time: 4
