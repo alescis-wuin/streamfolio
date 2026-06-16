@@ -38,6 +38,19 @@ La commande suivante supprime explicitement les données PostgreSQL et doit êtr
 docker compose down -v
 ```
 
+## PostgreSQL 18 et volume Docker
+
+L'image officielle PostgreSQL 18 utilise un répertoire de données versionné sous `/var/lib/postgresql`, par exemple `/var/lib/postgresql/18/docker`. Le volume Compose doit donc être monté sur `/var/lib/postgresql`, pas sur l'ancien chemin `/var/lib/postgresql/data`.
+
+Si un premier démarrage a échoué avec l'ancien montage et qu'aucune donnée réelle n'a encore été créée, réinitialiser uniquement les conteneurs/volumes de développement :
+
+```bash
+docker compose down --remove-orphans -v
+docker compose up -d
+```
+
+Ne pas utiliser `-v` sur une base contenant déjà des données à conserver.
+
 ## Lancement Maven avec PostgreSQL local/Docker
 
 Démarrer uniquement PostgreSQL :
