@@ -11,6 +11,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import java.time.Duration;
 import java.time.Instant;
 
 @Entity
@@ -53,6 +54,19 @@ public class TranscodeJob {
 
     private Instant finishedAt;
 
+    @Column(nullable = false)
+    private int attemptCount;
+
+    @Column(nullable = false)
+    private int maxAttempts = 3;
+
+    private Instant nextAttemptAt;
+
+    @Column(nullable = false)
+    private boolean cancellationRequested;
+
+    private Instant lastHeartbeatAt;
+
     @Column(length = 1200)
     private String message;
 
@@ -71,7 +85,24 @@ public class TranscodeJob {
         this.force = force;
         this.workItem = cleanWorkItem(workItem);
         this.parentJobId = parentJobId;
+        this.nextAttemptAt = requestedAt;
         this.message = "Job " + this.workItem + " en attente.";
+    }
+
+    public boolean isRunnableAt(Instant now) {
+        return status.isRunnable() && !cancellationRequested && (nextAttemptAt == null || !nextAttemptAt.isAfter(now));
+    }
+
+    public boolean isBatch() {
+        return WORK_ITEM_BATCH.equals(workItem);
+    }
+
+    public boolean canRetry() {
+        return attemptCount < maxAttempts && !cancellationRequested;
+    }
+
+    public void configureRetries(int maxAttempts) {
+        this.maxAttempts = Math.max(1, maxAttempts);
     }
 
     public void markRunning(String message) {
@@ -81,15 +112,57 @@ public class TranscodeJob {
     public void markRunning(String message, String workerName) {
         this.status = TranscodeJobStatus.RUNNING;
         this.progressPercent = Math.max(progressPercent, 5);
-        this.startedAt = this.startedAt == null ? Instant.now() : this.startedAt;
+        this.attemptCount += 1;
+        this.startedAt = Instant.now();
         this.finishedAt = null;
+        this.nextAttemptAt = null;
+        this.lastHeartbeatAt = Instant.now();
         this.message = message;
         this.workerName = workerName;
+    }
+
+    public void heartbeat(String message) {
+        this.lastHeartbeatAt = Instant.now();
+        if (message != null && !message.isBlank()) {
+            this.message = message;
+        }
     }
 
     public void updateProgress(int progressPercent, String message) {
         this.progressPercent = Math.max(0, Math.min(100, progressPercent));
         this.message = message;
+        this.lastHeartbeatAt = Instant.now();
+    }
+
+    public void markQueuedForRetry(Duration delay, String message) {
+        this.status = TranscodeJobStatus.RETRYING;
+        this.nextAttemptAt = Instant.now().plus(delay == null ? Duration.ZERO : delay);
+        this.workerName = null;
+        this.lastHeartbeatAt = Instant.now();
+        this.message = message;
+    }
+
+    public void resetForManualRetry(int maxAttempts) {
+        this.status = TranscodeJobStatus.RETRYING;
+        this.progressPercent = 0;
+        this.attemptCount = 0;
+        this.maxAttempts = Math.max(1, maxAttempts);
+        this.nextAttemptAt = Instant.now();
+        this.startedAt = null;
+        this.finishedAt = null;
+        this.workerName = null;
+        this.cancellationRequested = false;
+        this.message = "Relance manuelle du job " + workItem + ".";
+    }
+
+    public void requestCancellation() {
+        this.cancellationRequested = true;
+        if (status == TranscodeJobStatus.PENDING || status == TranscodeJobStatus.RETRYING) {
+            markCancelled("Job annule avant execution.");
+        } else if (status == TranscodeJobStatus.RUNNING) {
+            this.status = TranscodeJobStatus.CANCELLING;
+            this.message = "Annulation demandee.";
+        }
     }
 
     public void markDone(String outputPath, String message) {
@@ -98,12 +171,23 @@ public class TranscodeJob {
         this.outputPath = outputPath;
         this.message = message;
         this.finishedAt = Instant.now();
+        this.nextAttemptAt = null;
+        this.cancellationRequested = false;
     }
 
     public void markFailed(String message) {
         this.status = TranscodeJobStatus.FAILED;
         this.message = message;
         this.finishedAt = Instant.now();
+        this.nextAttemptAt = null;
+    }
+
+    public void markCancelled(String message) {
+        this.status = TranscodeJobStatus.CANCELLED;
+        this.message = message;
+        this.finishedAt = Instant.now();
+        this.nextAttemptAt = null;
+        this.cancellationRequested = true;
     }
 
     private String cleanWorkItem(String value) {
@@ -121,6 +205,11 @@ public class TranscodeJob {
     public Instant getRequestedAt() { return requestedAt; }
     public Instant getStartedAt() { return startedAt; }
     public Instant getFinishedAt() { return finishedAt; }
+    public int getAttemptCount() { return attemptCount; }
+    public int getMaxAttempts() { return maxAttempts; }
+    public Instant getNextAttemptAt() { return nextAttemptAt; }
+    public boolean isCancellationRequested() { return cancellationRequested; }
+    public Instant getLastHeartbeatAt() { return lastHeartbeatAt; }
     public String getMessage() { return message; }
     public String getOutputPath() { return outputPath; }
 }
