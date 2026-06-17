@@ -12,6 +12,8 @@ spring:
       max-request-size: 5GB
   data:
     redis:
+      repositories:
+        enabled: false
       url: ${STREAMFOLIO_REDIS_URL:redis://localhost:6379}
   datasource:
     # Volatile development database. Use the docker or postgres profile for durable data.

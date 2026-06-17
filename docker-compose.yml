@@ -20,8 +20,8 @@ services:
       STREAMFOLIO_MINIO_ENDPOINT: ${STREAMFOLIO_MINIO_ENDPOINT:-http://minio:9000}
       STREAMFOLIO_MINIO_PUBLIC_ENDPOINT: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       STREAMFOLIO_MINIO_BUCKET: ${STREAMFOLIO_MINIO_BUCKET:-streamfolio-media}
-      STREAMFOLIO_MINIO_ACCESS_KEY: ${STREAMFOLIO_MINIO_ACCESS_KEY:-streamfolio}
-      STREAMFOLIO_MINIO_SECRET_KEY: ${STREAMFOLIO_MINIO_SECRET_KEY:-change-me}
+      STREAMFOLIO_MINIO_ACCESS_KEY: streamfolio
+      STREAMFOLIO_MINIO_SECRET_KEY: streamfolio-minio-secret
     volumes:
       - ./data/media:/app/data/media
     depends_on:
@@ -64,8 +64,8 @@ services:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${STREAMFOLIO_MINIO_ACCESS_KEY:-streamfolio}
-      MINIO_ROOT_PASSWORD: ${STREAMFOLIO_MINIO_SECRET_KEY:-change-me}
+      MINIO_ROOT_USER: streamfolio
+      MINIO_ROOT_PASSWORD: streamfolio-minio-secret
     ports:
       - "9000:9000"
       - "9001:9001"
