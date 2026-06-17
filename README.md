@@ -34,7 +34,16 @@ git lfs pull
 docker compose up --build
 ```
 
-Développement HTTP : lancer Redis avec `docker compose up -d redis`, puis exécuter `SPRING_PROFILES_ACTIVE=dev mvn spring-boot:run` depuis `backend/`.
+Développement admin/HLS via Maven : utiliser `bash scripts/run.sh`. Ce script prépare `backend/data/media`, démarre Redis et lance le profil `local-media`.
+
+Commande équivalente :
+
+```bash
+docker compose up -d redis
+bash scripts/prepare-local-media.sh backend/data/media
+cd backend
+SPRING_PROFILES_ACTIVE=local-media mvn spring-boot:run
+```
 
 PostgreSQL local : lancer `docker compose up -d postgres redis`, puis exécuter `SPRING_PROFILES_ACTIVE=postgres mvn spring-boot:run` depuis `backend/`.
 
