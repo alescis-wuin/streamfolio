@@ -10,18 +10,22 @@ CSRF_PAYLOAD="$(curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" "$BASE_URL/api/csrf"
 CSRF_HEADER="$(printf '%s' "$CSRF_PAYLOAD" | jq -r '.headerName')"
 CSRF_TOKEN="$(printf '%s' "$CSRF_PAYLOAD" | jq -r '.token')"
 
+LOGIN_OK="false"
 for i in {1..30}; do
   if curl -fsS -c "$COOKIE_JAR" -b "$COOKIE_JAR" -X POST "$BASE_URL/api/auth/login" \
     -H 'Content-Type: application/json' \
     -H "$CSRF_HEADER: $CSRF_TOKEN" \
-    -d '{"email":"alexis@example.dev","password":"demo1234"}' | jq '.user.email'; then
+    -d '{"email":"alexis@example.dev","password":"demo1234"}' 2>/dev/null | jq '.user.email'; then
+    LOGIN_OK="true"
     break
-  fi
-  if [ "$i" -eq 30 ]; then
-    exit 1
   fi
   sleep 1
 done
+
+if [ "$LOGIN_OK" != "true" ]; then
+  echo "[ERROR] Smoke login failed after 30 attempts." >&2
+  exit 1
+fi
 
 curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/me" | jq .
 curl -fsS -b "$COOKIE_JAR" "$BASE_URL/api/sections" | jq '.sections | length'
