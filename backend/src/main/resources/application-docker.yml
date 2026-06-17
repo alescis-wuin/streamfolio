@@ -21,5 +21,12 @@ spring:
 
 streamfolio:
   media:
-    storage: local
+    storage: ${STREAMFOLIO_MEDIA_STORAGE:minio}
     root: ${STREAMFOLIO_MEDIA_ROOT:/app/data/media}
+  minio:
+    enabled: ${STREAMFOLIO_MINIO_ENABLED:true}
+    endpoint: ${STREAMFOLIO_MINIO_ENDPOINT:http://minio:9000}
+    public-endpoint: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    bucket: ${STREAMFOLIO_MINIO_BUCKET:streamfolio-media}
+    access-key: ${STREAMFOLIO_MINIO_ACCESS_KEY:streamfolio}
+    secret-key: ${STREAMFOLIO_MINIO_SECRET_KEY:streamfolio-minio-secret}
