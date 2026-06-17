@@ -23,7 +23,6 @@
 - Erreurs serveur génériques côté client et loggées côté serveur.
 - Requêtes catalogue paginées avec fetch plan dédié.
 - Test de non-régression sur le nombre de requêtes SQL du catalogue.
-- Nettoyage périodique des sessions expirées.
 - Tests unitaires `AuthService`.
 - Tests sécurité MockMvc.
 - Tests d'intégration `CatalogService`.
@@ -44,7 +43,7 @@
 - Tests unitaires du stockage média.
 - Tests d'intégration du streaming local.
 
-## V1.4 en cours
+## V1.4 livrée
 
 - Modèles `MediaAsset` et `TranscodeJob`.
 - API admin média : jobs, assets, lancement de transcodage.
@@ -55,13 +54,14 @@
 - Styles admin/timeline extraits dans `media-admin.css`.
 - Profil PostgreSQL.
 - Profil MinIO préparé.
+- Sessions runtime externalisées dans Redis.
+- Version Maven et README alignés sur `1.4.0`.
 
 ## V1.5
 
-- Upload admin réel de fichier vidéo.
-- Création/édition admin de titres, vidéos et genres.
-- Association automatique upload → asset → job.
-- Validation fichier source, taille, extension, durée et codec.
+- Sélecteur manuel de qualité HLS côté lecteur.
+- Validation source renforcée par signature, durée et codec.
+- États de publication explicites `DRAFT` / `PUBLISHED`.
 - Import/export JSON du catalogue.
 - Skeleton loaders.
 - États d'erreur détaillés côté UI.

@@ -9,9 +9,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Base64;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Optional;
-import java.util.concurrent.ConcurrentHashMap;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
@@ -27,20 +25,26 @@ public class AuthService {
 
     private final UserAccountRepository users;
     private final PasswordEncoder passwordEncoder;
+    private final SessionStore sessions;
     private final Duration sessionTtl;
     private final Clock clock;
-    private final Map<String, SessionData> sessions = new ConcurrentHashMap<>();
 
     @Autowired
     public AuthService(UserAccountRepository users,
                        PasswordEncoder passwordEncoder,
+                       SessionStore sessions,
                        @Value("${streamfolio.security.session-ttl:PT30M}") Duration sessionTtl) {
-        this(users, passwordEncoder, sessionTtl, Clock.systemUTC());
+        this(users, passwordEncoder, sessions, sessionTtl, Clock.systemUTC());
     }
 
-    AuthService(UserAccountRepository users, PasswordEncoder passwordEncoder, Duration sessionTtl, Clock clock) {
+    AuthService(UserAccountRepository users,
+                PasswordEncoder passwordEncoder,
+                SessionStore sessions,
+                Duration sessionTtl,
+                Clock clock) {
         this.users = users;
         this.passwordEncoder = passwordEncoder;
+        this.sessions = sessions;
         this.sessionTtl = sessionTtl;
         this.clock = clock;
     }
@@ -57,30 +61,19 @@ public class AuthService {
 
         String token = generateToken();
         Instant expiresAt = Instant.now(clock).plus(sessionTtl);
-        sessions.put(token, new SessionData(user.getId(), expiresAt));
+        sessions.save(token, user.getId(), expiresAt);
         return new LoginResult(token, expiresAt, UserDto.from(user));
     }
 
     @Transactional(readOnly = true)
     public Optional<UserAccount> findByToken(String token) {
-        if (token == null || token.isBlank()) {
-            return Optional.empty();
-        }
-        SessionData session = sessions.get(token);
-        if (session == null) {
-            return Optional.empty();
-        }
-        if (!session.expiresAt().isAfter(Instant.now(clock))) {
-            sessions.remove(token);
-            return Optional.empty();
-        }
-        return users.findById(session.userId());
+        return sessions.find(token)
+            .filter(session -> session.expiresAt().isAfter(Instant.now(clock)))
+            .flatMap(session -> users.findById(session.userId()));
     }
 
     public void logout(String token) {
-        if (token != null && !token.isBlank()) {
-            sessions.remove(token);
-        }
+        sessions.delete(token);
     }
 
     public UserAccount requireUser(UserAccount user) {
@@ -103,9 +96,7 @@ public class AuthService {
     }
 
     int purgeExpiredSessions(Instant now) {
-        int before = sessions.size();
-        sessions.entrySet().removeIf(entry -> !entry.getValue().expiresAt().isAfter(now));
-        return before - sessions.size();
+        return sessions.purgeExpired(now);
     }
 
     public static String normalizeEmail(String email) {
@@ -120,8 +111,5 @@ public class AuthService {
         byte[] bytes = new byte[TOKEN_BYTES];
         SECURE_RANDOM.nextBytes(bytes);
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
-    }
-
-    private record SessionData(Long userId, Instant expiresAt) {
     }
 }

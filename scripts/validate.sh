@@ -5,6 +5,7 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LOG_DIR="${VALIDATION_LOG_DIR:-$ROOT_DIR/build/validation-logs}"
 BASE_URL="${BASE_URL:-http://localhost:8080}"
 APP_PID=""
+REDIS_STARTED_BY_VALIDATE="false"
 
 mkdir -p "$LOG_DIR"
 
@@ -16,7 +17,18 @@ cleanup_app() {
   APP_PID=""
 }
 
-trap cleanup_app EXIT
+cleanup_redis() {
+  if [ "$REDIS_STARTED_BY_VALIDATE" = "true" ]; then
+    (cd "$ROOT_DIR" && docker compose stop redis >/dev/null 2>&1) || true
+  fi
+}
+
+cleanup() {
+  cleanup_app
+  cleanup_redis
+}
+
+trap cleanup EXIT
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -29,6 +41,20 @@ run_step() {
   echo
   echo "==> $*"
   "$@"
+}
+
+start_redis() {
+  if [ -n "${STREAMFOLIO_REDIS_URL:-}" ]; then
+    echo "[OK] Using external Redis: $STREAMFOLIO_REDIS_URL"
+    return 0
+  fi
+
+  require_command docker
+  echo
+  echo "==> Start Redis for session validation"
+  (cd "$ROOT_DIR" && docker compose up -d redis)
+  REDIS_STARTED_BY_VALIDATE="true"
+  export STREAMFOLIO_REDIS_URL="redis://localhost:6379"
 }
 
 start_app() {
@@ -79,7 +105,8 @@ run_step bash -lc 'find tests/e2e -name "*.js" -print0 | xargs -0 -r -n1 node --
 run_step bash -lc 'cd backend && mvn -B clean test'
 run_step bash -lc 'cd backend && mvn -B -DskipTests package'
 
-start_app classpath java -jar "$ROOT_DIR/backend/target/streamfolio-v1-1.0.0.jar"
+start_redis
+start_app classpath java -jar "$ROOT_DIR/backend/target/streamfolio-v1-1.4.0.jar"
 run_step env BASE_URL="$BASE_URL" bash "$ROOT_DIR/scripts/smoke.sh"
 cleanup_app
 
@@ -88,7 +115,7 @@ start_app local-media env \
   SPRING_PROFILES_ACTIVE=local-media \
   STREAMFOLIO_MEDIA_STORAGE=local \
   STREAMFOLIO_MEDIA_ROOT="$ROOT_DIR/backend/data/media" \
-  java -jar "$ROOT_DIR/backend/target/streamfolio-v1-1.0.0.jar"
+  java -jar "$ROOT_DIR/backend/target/streamfolio-v1-1.4.0.jar"
 run_step env BASE_URL="$BASE_URL" bash "$ROOT_DIR/scripts/smoke.sh"
 cleanup_app
 

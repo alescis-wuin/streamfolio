@@ -15,15 +15,19 @@ services:
       STREAMFOLIO_POSTGRES_URL: ${STREAMFOLIO_POSTGRES_URL:-jdbc:postgresql://postgres:5432/streamfolio}
       STREAMFOLIO_POSTGRES_USER: ${STREAMFOLIO_POSTGRES_USER:-streamfolio}
       STREAMFOLIO_POSTGRES_PASSWORD: ${STREAMFOLIO_POSTGRES_PASSWORD:-change-me}
+      STREAMFOLIO_REDIS_URL: ${STREAMFOLIO_REDIS_URL:-redis://redis:6379}
+      STREAMFOLIO_SESSION_KEY_PREFIX: ${STREAMFOLIO_SESSION_KEY_PREFIX:-streamfolio:sessions:}
       STREAMFOLIO_MINIO_ENDPOINT: ${STREAMFOLIO_MINIO_ENDPOINT:-http://minio:9000}
       STREAMFOLIO_MINIO_PUBLIC_ENDPOINT: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT:-http://localhost:9000}
       STREAMFOLIO_MINIO_BUCKET: ${STREAMFOLIO_MINIO_BUCKET:-streamfolio-media}
-      STREAMFOLIO_MINIO_ACCESS_KEY: ${STREAMFOLIO_MINIO_ACCESS_KEY:-streamfolio}
-      STREAMFOLIO_MINIO_SECRET_KEY: ${STREAMFOLIO_MINIO_SECRET_KEY:-change-me}
+      STREAMFOLIO_MINIO_ACCESS_KEY: streamfolio
+      STREAMFOLIO_MINIO_SECRET_KEY: streamfolio-minio-secret
     volumes:
       - ./data/media:/app/data/media
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       minio:
         condition: service_started
@@ -45,12 +49,23 @@ services:
       retries: 5
       start_period: 30s
 
+  redis:
+    image: redis:7.4-alpine
+    command: ["redis-server", "--appendonly", "no", "--save", ""]
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   minio:
     image: minio/minio:latest
     command: server /data --console-address ":9001"
     environment:
-      MINIO_ROOT_USER: ${STREAMFOLIO_MINIO_ACCESS_KEY:-streamfolio}
-      MINIO_ROOT_PASSWORD: ${STREAMFOLIO_MINIO_SECRET_KEY:-change-me}
+      MINIO_ROOT_USER: streamfolio
+      MINIO_ROOT_PASSWORD: streamfolio-minio-secret
     ports:
       - "9000:9000"
       - "9001:9001"

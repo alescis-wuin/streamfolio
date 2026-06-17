@@ -1,4 +1,7 @@
 spring:
+  data:
+    redis:
+      url: ${STREAMFOLIO_REDIS_URL:redis://redis:6379}
   datasource:
     url: ${STREAMFOLIO_POSTGRES_URL:jdbc:postgresql://postgres:5432/streamfolio}
     driver-class-name: org.postgresql.Driver
