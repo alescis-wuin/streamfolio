@@ -74,7 +74,24 @@ class TranscodeJobWorkerTest {
     }
 
     @Test
-    void marksVariantJobFailedWhenTranscodingFails() {
+    void marksVariantJobRetryingWhenTranscodingFailsAndAttemptsRemain() {
+        when(jobs.findById(11L)).thenReturn(Optional.of(job));
+        when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
+            .thenThrow(new BadRequestException("ffmpeg failed"));
+
+        worker.run(11L);
+
+        assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.RETRYING);
+        assertThat(job.getAttemptCount()).isEqualTo(1);
+        assertThat(job.getNextAttemptAt()).isNotNull();
+        assertThat(job.getMessage()).contains("ffmpeg failed");
+        verify(jobs, atLeast(2)).save(job);
+    }
+
+    @Test
+    void marksVariantJobFailedWhenTranscodingFailsWithoutAttemptsRemaining() {
+        job.configureRetries(1);
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
         when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
@@ -83,6 +100,7 @@ class TranscodeJobWorkerTest {
         worker.run(11L);
 
         assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.FAILED);
+        assertThat(job.getAttemptCount()).isEqualTo(1);
         assertThat(job.getMessage()).contains("ffmpeg failed");
         verify(jobs, atLeast(2)).save(job);
     }
