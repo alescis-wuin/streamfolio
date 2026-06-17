@@ -38,6 +38,17 @@ class MediaStorageServiceTest {
     }
 
     @Test
+    void minioModeKeepsLocalStagingFallbackWhenGatewayIsMissing() throws IOException {
+        Files.createDirectories(tempDir.resolve("originals"));
+        Files.writeString(tempDir.resolve("originals/example.mp4"), "demo video");
+
+        MediaStorageService storage = new MediaStorageService("minio", tempDir.toString());
+
+        assertThat(storage.mode()).isEqualTo(MediaStorageMode.MINIO);
+        assertThat(storage.video("example.mp4").exists()).isTrue();
+    }
+
+    @Test
     void localModeResolvesNestedHlsVariantFiles() throws IOException {
         Files.createDirectories(tempDir.resolve("hls/1/720p"));
         Files.writeString(tempDir.resolve("hls/1/720p/playlist.m3u8"), "#EXTM3U");
@@ -99,6 +110,6 @@ class MediaStorageServiceTest {
     void rejectsUnknownStorageMode() {
         assertThatThrownBy(() -> new MediaStorageService("s3", tempDir.toString()))
             .isInstanceOf(BadRequestException.class)
-            .hasMessageContaining("Mode de stockage média invalide");
+            .hasMessageContaining("Mode de stockage");
     }
 }
