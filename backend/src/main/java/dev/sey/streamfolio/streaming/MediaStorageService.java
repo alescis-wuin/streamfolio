@@ -27,7 +27,7 @@ public class MediaStorageService {
     private final MinioMediaGateway minio;
 
     public MediaStorageService(String storage, String root) {
-        this(storage, root, null);
+        this(storage, root, (MinioMediaGateway) null);
     }
 
     @Autowired
