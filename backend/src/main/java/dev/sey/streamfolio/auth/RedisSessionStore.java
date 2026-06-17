@@ -4,6 +4,7 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
@@ -17,6 +18,7 @@ public class RedisSessionStore implements SessionStore {
     private final String keyPrefix;
     private final Clock clock;
 
+    @Autowired
     public RedisSessionStore(StringRedisTemplate redis,
                              @Value("${streamfolio.security.session-key-prefix:" + DEFAULT_KEY_PREFIX + "}") String keyPrefix) {
         this(redis, keyPrefix, Clock.systemUTC());
@@ -35,8 +37,6 @@ public class RedisSessionStore implements SessionStore {
             delete(token);
             return;
         }
-
-        // Redis TTL is the source of truth for session expiry; the timestamp keeps stale reads defensive.
         redis.opsForValue().set(key(token), encode(userId, expiresAt), ttl);
     }
 
@@ -45,16 +45,14 @@ public class RedisSessionStore implements SessionStore {
         if (isBlank(token)) {
             return Optional.empty();
         }
-
-        String key = key(token);
-        String payload = redis.opsForValue().get(key);
+        String redisKey = key(token);
+        String payload = redis.opsForValue().get(redisKey);
         if (payload == null || payload.isBlank()) {
             return Optional.empty();
         }
-
         Optional<StoredSession> session = decode(payload);
         if (session.isEmpty() || !session.get().expiresAt().isAfter(Instant.now(clock))) {
-            redis.delete(key);
+            redis.delete(redisKey);
             return Optional.empty();
         }
         return session;
@@ -69,7 +67,6 @@ public class RedisSessionStore implements SessionStore {
 
     @Override
     public int purgeExpired(Instant now) {
-        // Redis expires session keys automatically, so no application-side scan is required.
         return 0;
     }
 
