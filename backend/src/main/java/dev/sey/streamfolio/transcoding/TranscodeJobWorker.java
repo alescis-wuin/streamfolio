@@ -7,7 +7,10 @@ import dev.sey.streamfolio.repository.MediaAssetRepository;
 import dev.sey.streamfolio.repository.TranscodeJobRepository;
 import dev.sey.streamfolio.streaming.MediaStorageService;
 import java.nio.file.Path;
+import java.time.Duration;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
@@ -17,21 +20,40 @@ public class TranscodeJobWorker {
     private final MediaAssetRepository assets;
     private final TranscodingService transcodingService;
     private final MediaStorageService mediaStorage;
+    private final Duration initialRetryDelay;
+    private final Duration maxRetryDelay;
 
     public TranscodeJobWorker(TranscodeJobRepository jobs,
                               MediaAssetRepository assets,
                               TranscodingService transcodingService,
                               MediaStorageService mediaStorage) {
+        this(jobs, assets, transcodingService, mediaStorage, Duration.ofSeconds(5), Duration.ofMinutes(2));
+    }
+
+    @Autowired
+    public TranscodeJobWorker(TranscodeJobRepository jobs,
+                              MediaAssetRepository assets,
+                              TranscodingService transcodingService,
+                              MediaStorageService mediaStorage,
+                              @Value("${streamfolio.transcoding.initial-retry-delay:PT5S}") Duration initialRetryDelay,
+                              @Value("${streamfolio.transcoding.max-retry-delay:PT2M}") Duration maxRetryDelay) {
         this.jobs = jobs;
         this.assets = assets;
         this.transcodingService = transcodingService;
         this.mediaStorage = mediaStorage;
+        this.initialRetryDelay = initialRetryDelay == null ? Duration.ofSeconds(5) : initialRetryDelay;
+        this.maxRetryDelay = maxRetryDelay == null ? Duration.ofMinutes(2) : maxRetryDelay;
     }
 
     @Async("transcodeTaskExecutor")
     public void run(Long jobId) {
         TranscodeJob job = jobs.findWithVideoById(jobId).orElse(null);
-        if (job == null) {
+        if (job == null || job.getStatus().isTerminal() || job.isBatch()) {
+            return;
+        }
+        if (job.isCancellationRequested()) {
+            markCancelled(jobId, "Job annule avant execution.");
+            reconcileParent(job.getParentJobId());
             return;
         }
         markRunning(jobId, "Worker " + job.getWorkItem() + " demarre.");
@@ -39,8 +61,11 @@ public class TranscodeJobWorker {
             HlsTranscodeResult result = runWorkItem(job);
             markDone(jobId, result.playlist().toString(), result.message());
             reconcileParent(job.getParentJobId());
+        } catch (TranscodeCancelledException exception) {
+            markCancelled(jobId, safeMessage(exception));
+            reconcileParent(job.getParentJobId());
         } catch (Exception exception) {
-            markFailed(jobId, safeMessage(exception));
+            markRetryOrFailed(jobId, safeMessage(exception));
             reconcileParent(job.getParentJobId());
         }
     }
@@ -63,6 +88,10 @@ public class TranscodeJobWorker {
             return;
         }
         updateParentProgress(parentJobId, children);
+        if (children.stream().anyMatch(child -> child.getStatus() == TranscodeJobStatus.CANCELLED)) {
+            markParentCancelled(parentJobId, "Au moins un travail de transcodage a ete annule.");
+            return;
+        }
         if (children.stream().anyMatch(child -> child.getStatus() == TranscodeJobStatus.FAILED)) {
             markParentFailed(parentJobId, "Au moins une variante de transcodage a echoue.");
             return;
@@ -101,13 +130,20 @@ public class TranscodeJobWorker {
         });
     }
 
+    private void markParentCancelled(Long parentJobId, String message) {
+        jobs.findWithVideoById(parentJobId).ifPresent(parent -> {
+            parent.markCancelled(message);
+            jobs.save(parent);
+        });
+    }
+
     private void updateParentProgress(Long parentJobId, List<TranscodeJob> children) {
         int average = (int) Math.round(children.stream().mapToInt(TranscodeJob::getProgressPercent).average().orElse(0));
         jobs.findById(parentJobId).ifPresent(parent -> {
-            if (parent.getStatus() == TranscodeJobStatus.DONE || parent.getStatus() == TranscodeJobStatus.FAILED) {
+            if (parent.getStatus().isTerminal()) {
                 return;
             }
-            parent.updateProgress(average, "Progression globale des variantes: " + average + "%.");
+            parent.updateProgress(average, "Progression globale des variantes: " + average + "%. ");
             jobs.save(parent);
         });
     }
@@ -136,9 +172,21 @@ public class TranscodeJobWorker {
         });
     }
 
-    private void markFailed(Long jobId, String message) {
+    private void markRetryOrFailed(Long jobId, String message) {
         jobs.findWithVideoById(jobId).ifPresent(job -> {
-            job.markFailed(message);
+            if (job.canRetry()) {
+                Duration delay = retryDelay(job);
+                job.markQueuedForRetry(delay, "Nouvel essai dans " + delay.toSeconds() + " s apres echec: " + message);
+            } else {
+                job.markFailed(message);
+            }
+            jobs.save(job);
+        });
+    }
+
+    private void markCancelled(Long jobId, String message) {
+        jobs.findById(jobId).ifPresent(job -> {
+            job.markCancelled(message);
             jobs.save(job);
         });
     }
@@ -147,6 +195,12 @@ public class TranscodeJobWorker {
         MediaAsset asset = assets.findByVideo(job.getVideo()).orElseGet(() -> new MediaAsset(job.getVideo()));
         asset.markReady(playlist.toString(), thumbnailManifest.toString());
         assets.save(asset);
+    }
+
+    private Duration retryDelay(TranscodeJob job) {
+        long multiplier = 1L << Math.max(0, Math.min(10, job.getAttemptCount() - 1));
+        long seconds = Math.min(maxRetryDelay.toSeconds(), Math.max(1, initialRetryDelay.toSeconds()) * multiplier);
+        return Duration.ofSeconds(seconds);
     }
 
     private String safeMessage(Exception exception) {

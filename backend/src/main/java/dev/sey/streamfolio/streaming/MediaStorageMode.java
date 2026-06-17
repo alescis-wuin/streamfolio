@@ -5,7 +5,8 @@ import java.util.Locale;
 
 public enum MediaStorageMode {
     CLASSPATH,
-    LOCAL;
+    LOCAL,
+    MINIO;
 
     public static MediaStorageMode from(String value) {
         if (value == null || value.isBlank()) {
@@ -14,7 +15,7 @@ public enum MediaStorageMode {
         try {
             return MediaStorageMode.valueOf(value.trim().replace('-', '_').toUpperCase(Locale.ROOT));
         } catch (IllegalArgumentException exception) {
-            throw new BadRequestException("Mode de stockage média invalide. Valeurs: classpath, local.");
+            throw new BadRequestException("Mode de stockage media invalide. Valeurs: classpath, local, minio.");
         }
     }
 }

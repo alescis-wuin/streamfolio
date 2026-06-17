@@ -10,11 +10,14 @@ import java.util.Map;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
+import java.util.function.BooleanSupplier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 @Service
 public class FfmpegService {
+    private static final BooleanSupplier NEVER_CANCELLED = () -> false;
+
     private final String binary;
     private final Duration probeTimeout;
     private final Map<String, Boolean> encoderAvailability = new ConcurrentHashMap<>();
@@ -46,8 +49,12 @@ public class FfmpegService {
     }
 
     public CommandResult runOrThrow(List<String> command, Duration timeout) {
+        return runOrThrow(command, timeout, NEVER_CANCELLED);
+    }
+
+    public CommandResult runOrThrow(List<String> command, Duration timeout, BooleanSupplier cancellationRequested) {
         try {
-            CommandResult result = run(command, timeout);
+            CommandResult result = run(command, timeout, cancellationRequested);
             if (result.exitCode() != 0) {
                 throw new BadRequestException("FFmpeg a échoué: " + trimOutput(result.output()));
             }
@@ -62,6 +69,10 @@ public class FfmpegService {
     }
 
     CommandResult run(List<String> command, Duration timeout) throws IOException {
+        return run(command, timeout, NEVER_CANCELLED);
+    }
+
+    CommandResult run(List<String> command, Duration timeout, BooleanSupplier cancellationRequested) throws IOException {
         if (command == null || command.isEmpty()) {
             throw new BadRequestException("Commande FFmpeg vide.");
         }
@@ -70,13 +81,23 @@ public class FfmpegService {
             .redirectErrorStream(true)
             .start();
         CompletableFuture<String> output = CompletableFuture.supplyAsync(() -> readOutput(process.getInputStream()));
+        long deadline = System.nanoTime() + TimeUnit.MILLISECONDS.toNanos(effectiveTimeout.toMillis());
         try {
-            boolean finished = process.waitFor(effectiveTimeout.toMillis(), TimeUnit.MILLISECONDS);
-            if (!finished) {
-                process.destroyForcibly();
-                return new CommandResult(-1, outputNow(output), true);
+            while (true) {
+                if (isCancellationRequested(cancellationRequested)) {
+                    process.destroyForcibly();
+                    throw new TranscodeCancelledException("Transcodage annule par l'utilisateur.");
+                }
+                long remainingNanos = deadline - System.nanoTime();
+                if (remainingNanos <= 0) {
+                    process.destroyForcibly();
+                    return new CommandResult(-1, outputNow(output), true);
+                }
+                long waitMillis = Math.max(1, Math.min(1000, TimeUnit.NANOSECONDS.toMillis(remainingNanos)));
+                if (process.waitFor(waitMillis, TimeUnit.MILLISECONDS)) {
+                    return new CommandResult(process.exitValue(), outputNow(output), false);
+                }
             }
-            return new CommandResult(process.exitValue(), outputNow(output), false);
         } catch (InterruptedException exception) {
             Thread.currentThread().interrupt();
             process.destroyForcibly();
@@ -91,6 +112,10 @@ public class FfmpegService {
         } catch (IOException exception) {
             return false;
         }
+    }
+
+    private static boolean isCancellationRequested(BooleanSupplier cancellationRequested) {
+        return cancellationRequested != null && cancellationRequested.getAsBoolean();
     }
 
     private static String readOutput(InputStream input) {

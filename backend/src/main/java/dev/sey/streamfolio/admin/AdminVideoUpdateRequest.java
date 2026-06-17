@@ -14,6 +14,7 @@ public record AdminVideoUpdateRequest(
     String videoTitle,
     Integer seasonNumber,
     Integer episodeNumber,
-    Integer durationSeconds
+    Integer durationSeconds,
+    String publicationStatus
 ) {
 }

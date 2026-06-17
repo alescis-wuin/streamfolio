@@ -29,6 +29,17 @@ public class TranscodeAdminController {
         return jobs.job(jobId);
     }
 
+    @PostMapping("/jobs/{jobId}/cancel")
+    public TranscodeJobDto cancel(@PathVariable Long jobId) {
+        return jobs.cancel(jobId);
+    }
+
+    @PostMapping("/jobs/{jobId}/retry")
+    @ResponseStatus(HttpStatus.ACCEPTED)
+    public TranscodeJobDto retry(@PathVariable Long jobId) {
+        return jobs.retry(jobId);
+    }
+
     @GetMapping("/assets")
     public List<MediaAssetDto> assets() {
         return jobs.assets();

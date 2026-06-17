@@ -1,0 +1,38 @@
+spring:
+  data:
+    redis:
+      url: ${STREAMFOLIO_REDIS_URL}
+  datasource:
+    url: ${STREAMFOLIO_POSTGRES_URL}
+    driver-class-name: org.postgresql.Driver
+    username: ${STREAMFOLIO_POSTGRES_USER}
+    password: ${STREAMFOLIO_POSTGRES_PASSWORD}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: UTC
+  flyway:
+    enabled: true
+    locations: classpath:db/migration/postgresql
+  h2:
+    console:
+      enabled: false
+
+streamfolio:
+  security:
+    cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:true}
+    cookie-same-site: Strict
+  media:
+    storage: ${STREAMFOLIO_MEDIA_STORAGE:minio}
+    root: ${STREAMFOLIO_MEDIA_ROOT:/app/data/media}
+  minio:
+    enabled: ${STREAMFOLIO_MINIO_ENABLED:true}
+    endpoint: ${STREAMFOLIO_MINIO_ENDPOINT}
+    public-endpoint: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT}
+    bucket: ${STREAMFOLIO_MINIO_BUCKET:streamfolio-media}
+    access-key: ${STREAMFOLIO_MINIO_ACCESS_KEY}
+    secret-key: ${STREAMFOLIO_MINIO_SECRET_KEY}
+    auto-create-bucket: ${STREAMFOLIO_MINIO_AUTO_CREATE_BUCKET:true}

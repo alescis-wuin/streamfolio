@@ -1,8 +1,11 @@
 package dev.sey.streamfolio.streaming;
 
 import dev.sey.streamfolio.common.BadRequestException;
+import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.FileSystemResource;
@@ -21,17 +24,30 @@ public class MediaStorageService {
 
     private final MediaStorageMode mode;
     private final Path root;
+    private final MinioMediaGateway minio;
 
+    public MediaStorageService(String storage, String root) {
+        this(storage, root, (MinioMediaGateway) null);
+    }
+
+    @Autowired
     public MediaStorageService(@Value("${streamfolio.media.storage:classpath}") String storage,
-                               @Value("${streamfolio.media.root:./data/media}") String root) {
+                               @Value("${streamfolio.media.root:./data/media}") String root,
+                               ObjectProvider<MinioMediaGateway> minio) {
+        this(storage, root, minio == null ? null : minio.getIfAvailable());
+    }
+
+    MediaStorageService(String storage, String root, MinioMediaGateway minio) {
         this.mode = MediaStorageMode.from(storage);
         this.root = Path.of(root).toAbsolutePath().normalize();
+        this.minio = minio;
     }
 
     public Resource video(String filename) {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
             case LOCAL -> new FileSystemResource(localOriginalPath(filename));
+            case MINIO -> minioOrLocal(LOCAL_ORIGINALS_DIR, safeFilename(filename), localOriginalPath(filename));
         };
     }
 
@@ -39,19 +55,28 @@ public class MediaStorageService {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
             case LOCAL -> new FileSystemResource(localSubtitlePath(filename));
+            case MINIO -> minioOrLocal(LOCAL_SUBTITLES_DIR, safeFilename(filename), localSubtitlePath(filename));
         };
     }
 
     public Resource hlsPlaylist(Long videoId) {
-        return new FileSystemResource(hlsMasterPlaylist(videoId));
+        return hlsSegment(videoId, HLS_MASTER_PLAYLIST);
     }
 
     public Resource hlsSegment(Long videoId, String filename) {
-        return new FileSystemResource(hlsFile(videoId, filename));
+        Path local = hlsFile(videoId, filename);
+        if (mode == MediaStorageMode.MINIO) {
+            return minioOrLocal(LOCAL_HLS_DIR + "/" + videoId, safeNestedPath(filename, ".ts", ".m3u8", "Chemin HLS invalide.", "Extension HLS invalide.").toString().replace('\\', '/'), local);
+        }
+        return new FileSystemResource(local);
     }
 
     public Resource thumbnail(Long videoId, String filename) {
-        return new FileSystemResource(thumbnailFile(videoId, filename));
+        Path local = thumbnailFile(videoId, filename);
+        if (mode == MediaStorageMode.MINIO) {
+            return minioOrLocal(LOCAL_THUMBNAILS_DIR + "/" + videoId, safeNestedPath(filename, ".jpg", ".json", "Chemin thumbnail invalide.", "Extension thumbnail invalide.").toString().replace('\\', '/'), local);
+        }
+        return new FileSystemResource(local);
     }
 
     public Path localOriginalPath(String filename) {
@@ -71,6 +96,9 @@ public class MediaStorageService {
     }
 
     public boolean hlsMasterPlaylistExists(Long videoId) {
+        if (mode == MediaStorageMode.MINIO && minio != null && minio.exists(LOCAL_HLS_DIR + "/" + videoId + "/" + HLS_MASTER_PLAYLIST)) {
+            return true;
+        }
         return hlsPlaylist(videoId).exists() && hlsPlaylist(videoId).isReadable();
     }
 
@@ -83,7 +111,23 @@ public class MediaStorageService {
     }
 
     public boolean thumbnailManifestExists(Long videoId) {
+        if (mode == MediaStorageMode.MINIO && minio != null && minio.exists(LOCAL_THUMBNAILS_DIR + "/" + videoId + "/" + THUMBNAIL_MANIFEST)) {
+            return true;
+        }
         return thumbnail(videoId, THUMBNAIL_MANIFEST).exists() && thumbnail(videoId, THUMBNAIL_MANIFEST).isReadable();
+    }
+
+    public void publishOriginal(String directory, String filename, Path source, String contentType) {
+        if (mode == MediaStorageMode.MINIO && minio != null) {
+            minio.upload(source, minio.objectName(directory, filename), contentType);
+        }
+    }
+
+    public void publishDerivedMedia(Long videoId) {
+        if (mode == MediaStorageMode.MINIO && minio != null) {
+            minio.uploadTree(hlsDirectory(videoId), minio.videoObjectPrefix(videoId, LOCAL_HLS_DIR));
+            minio.uploadTree(thumbnailDirectory(videoId), minio.videoObjectPrefix(videoId, LOCAL_THUMBNAILS_DIR));
+        }
     }
 
     public MediaStorageMode mode() {
@@ -94,6 +138,17 @@ public class MediaStorageService {
         return root;
     }
 
+    private Resource minioOrLocal(String directory, String filename, Path fallback) {
+        return minioOrLocal(directory + "/" + filename, fallback);
+    }
+
+    private Resource minioOrLocal(String objectName, Path fallback) {
+        if (minio != null && minio.exists(objectName)) {
+            return minio.resource(objectName);
+        }
+        return new FileSystemResource(fallback);
+    }
+
     private Resource classpath(String filename) {
         return new ClassPathResource(CLASSPATH_MEDIA_PREFIX + safeFilename(filename));
     }
@@ -102,7 +157,7 @@ public class MediaStorageService {
         Path directoryPath = root.resolve(directory).normalize();
         Path mediaPath = directoryPath.resolve(safeFilename(filename)).normalize();
         if (!mediaPath.startsWith(directoryPath)) {
-            throw new BadRequestException("Chemin média invalide.");
+            throw new BadRequestException("Chemin media invalide.");
         }
         return mediaPath;
     }
@@ -127,7 +182,7 @@ public class MediaStorageService {
 
     private Path videoScopedDirectory(Long videoId, String directory, String message) {
         if (videoId == null || videoId <= 0) {
-            throw new BadRequestException("Identifiant vidéo invalide.");
+            throw new BadRequestException("Identifiant video invalide.");
         }
         Path scopedRoot = root.resolve(directory).normalize();
         Path target = scopedRoot.resolve(videoId.toString()).normalize();
@@ -139,11 +194,11 @@ public class MediaStorageService {
 
     private String safeFilename(String filename) {
         if (filename == null || filename.isBlank()) {
-            throw new BadRequestException("Nom de fichier média manquant.");
+            throw new BadRequestException("Nom de fichier media manquant.");
         }
         String value = filename.trim();
         if (value.contains("/") || value.contains("\\") || value.contains("..")) {
-            throw new BadRequestException("Nom de fichier média invalide.");
+            throw new BadRequestException("Nom de fichier media invalide.");
         }
         return value;
     }

@@ -13,6 +13,9 @@ import jakarta.persistence.Table;
 @Entity
 @Table(name = "catalog_videos")
 public class CatalogVideo {
+    public static final String STATUS_DRAFT = "DRAFT";
+    public static final String STATUS_PUBLISHED = "PUBLISHED";
+
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
@@ -42,6 +45,9 @@ public class CatalogVideo {
     @Column(nullable = false, length = 220)
     private String subtitleFilename;
 
+    @Column(nullable = false, length = 24)
+    private String publicationStatus = STATUS_PUBLISHED;
+
     protected CatalogVideo() {
     }
 
@@ -54,6 +60,7 @@ public class CatalogVideo {
         this.durationSeconds = durationSeconds;
         this.assetFilename = assetFilename;
         this.subtitleFilename = subtitleFilename;
+        this.publicationStatus = STATUS_PUBLISHED;
     }
 
     public void setTitle(CatalogTitle title) {
@@ -70,6 +77,21 @@ public class CatalogVideo {
 
     public void updateSubtitleFilename(String subtitleFilename) {
         this.subtitleFilename = subtitleFilename;
+    }
+
+    public void updatePublicationStatus(String publicationStatus) {
+        this.publicationStatus = cleanPublicationStatus(publicationStatus);
+    }
+
+    private String cleanPublicationStatus(String publicationStatus) {
+        if (publicationStatus == null || publicationStatus.isBlank()) {
+            return STATUS_DRAFT;
+        }
+        String value = publicationStatus.trim().toUpperCase(java.util.Locale.ROOT);
+        if (!STATUS_DRAFT.equals(value) && !STATUS_PUBLISHED.equals(value)) {
+            throw new IllegalArgumentException("Invalid publication status: " + publicationStatus);
+        }
+        return value;
     }
 
     public Long getId() {
@@ -106,5 +128,9 @@ public class CatalogVideo {
 
     public String getSubtitleFilename() {
         return subtitleFilename;
+    }
+
+    public String getPublicationStatus() {
+        return publicationStatus;
     }
 }
