@@ -25,6 +25,13 @@ public class TranscodeJobWorker {
     public TranscodeJobWorker(TranscodeJobRepository jobs,
                               MediaAssetRepository assets,
                               TranscodingService transcodingService,
+                              MediaStorageService mediaStorage) {
+        this(jobs, assets, transcodingService, mediaStorage, Duration.ofSeconds(5), Duration.ofMinutes(2));
+    }
+
+    public TranscodeJobWorker(TranscodeJobRepository jobs,
+                              MediaAssetRepository assets,
+                              TranscodingService transcodingService,
                               MediaStorageService mediaStorage,
                               @Value("${streamfolio.transcoding.initial-retry-delay:PT5S}") Duration initialRetryDelay,
                               @Value("${streamfolio.transcoding.max-retry-delay:PT2M}") Duration maxRetryDelay) {
