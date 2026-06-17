@@ -63,7 +63,7 @@ public class TranscodingService {
     }
 
     public HlsTranscodeResult transcodeToHlsAndThumbnails(Long videoId, boolean force, ProgressReporter progress) {
-        ensureLocalStorage();
+        ensureWritableMediaStorage();
         CatalogVideo video = catalogService.findVideo(videoId);
         Path source = sourcePath(video);
         Path outputDirectory = mediaStorage.hlsDirectory(videoId);
@@ -84,7 +84,7 @@ public class TranscodingService {
     }
 
     public HlsTranscodeResult transcodeVariant(Long videoId, String variantName, boolean force, ProgressReporter progress) {
-        ensureLocalStorage();
+        ensureWritableMediaStorage();
         CatalogVideo video = catalogService.findVideo(videoId);
         Path source = sourcePath(video);
         Variant variant = variant(variantName);
@@ -103,7 +103,7 @@ public class TranscodingService {
     }
 
     public HlsTranscodeResult generateTimelineThumbnails(Long videoId, boolean force, ProgressReporter progress) {
-        ensureLocalStorage();
+        ensureWritableMediaStorage();
         CatalogVideo video = catalogService.findVideo(videoId);
         Path source = sourcePath(video);
         Path directory = mediaStorage.thumbnailDirectory(videoId);
@@ -137,7 +137,7 @@ public class TranscodingService {
     }
 
     public HlsTranscodeResult completeHls(Long videoId, boolean force) {
-        ensureLocalStorage();
+        ensureWritableMediaStorage();
         CatalogVideo video = catalogService.findVideo(videoId);
         Path source = sourcePath(video);
         Path outputDirectory = mediaStorage.hlsDirectory(videoId);
@@ -151,12 +151,13 @@ public class TranscodingService {
         }
         writeMasterPlaylist(playlist);
         validatePlaylist(playlist, true);
+        mediaStorage.publishDerivedMedia(videoId);
         return new HlsTranscodeResult(videoId, force, source, outputDirectory, playlist, "HLS multi-bitrate et thumbnails generes.");
     }
 
-    private void ensureLocalStorage() {
-        if (mediaStorage.mode() != MediaStorageMode.LOCAL) {
-            throw new BadRequestException("Transcodage HLS disponible uniquement avec le stockage media local.");
+    private void ensureWritableMediaStorage() {
+        if (mediaStorage.mode() == MediaStorageMode.CLASSPATH) {
+            throw new BadRequestException("Transcodage HLS disponible avec le stockage media local ou MinIO uniquement.");
         }
     }
 
@@ -224,6 +225,7 @@ public class TranscodingService {
             "-pix_fmt", "yuv420p", "-flags", "+cgop", "-g", String.valueOf(hlsSegmentTime * 24), "-sc_threshold", "0",
             "-c:a", "aac", "-b:a", "128k", "-ac", "2",
             "-f", "hls", "-hls_time", String.valueOf(hlsSegmentTime), "-hls_list_size", "0", "-hls_playlist_type", "vod",
+            "-hls_flags", "independent_segments+temp_file",
             "-hls_segment_filename", outputDirectory.resolve("segment_%03d.ts").toString(), playlist.toString()
         ));
         return List.copyOf(command);
@@ -240,7 +242,7 @@ public class TranscodingService {
     }
 
     private void writeMasterPlaylist(Path playlist) {
-        StringBuilder content = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n");
+        StringBuilder content = new StringBuilder("#EXTM3U\n#EXT-X-VERSION:3\n#EXT-X-INDEPENDENT-SEGMENTS\n");
         for (Variant variant : VARIANTS) {
             content.append("#EXT-X-STREAM-INF:BANDWIDTH=").append(variant.bandwidth()).append(",RESOLUTION=")
                 .append(variant.width()).append('x').append(variant.height()).append(",NAME=\"").append(variant.name()).append("\"\n")
