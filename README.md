@@ -24,7 +24,7 @@ Captures : [`docs/screenshots/README.md`](docs/screenshots/README.md).
 | Streaming | HTML5, MP4 progressif, HTTP Range, WebVTT, HLS local/MinIO via hls.js |
 | Admin média | Upload, métadonnées, miniatures, association série/film, jobs de transcodage, annulation et relance manuelle |
 | Pipeline média | File persistante, workers asynchrones bornés, ordonnanceur, reprise après redémarrage, retry exponentiel |
-| Persistance | H2 de démo, PostgreSQL + Flyway, Redis pour l'état de session runtime, MinIO pour médias originaux/dérivés |
+| Persistance | H2 de démo, PostgreSQL + Flyway, Redis pour l'état de session runtime, MinIO pour les sorties HLS/thumbnails générées |
 | Qualité | Tests Maven, tests sécurité, tests streaming/admin, smoke tests, E2E Playwright, CI GitHub Actions |
 
 ## Démarrage
@@ -74,7 +74,7 @@ STREAMFOLIO_MINIO_ACCESS_KEY=streamfolio
 STREAMFOLIO_MINIO_SECRET_KEY=change-me
 ```
 
-En production, placer Streamfolio derrière HTTPS et conserver `STREAMFOLIO_COOKIE_SECURE=true`. Redis doit être durable ou externalisé si les sessions doivent survivre à une coupure de service Redis. PostgreSQL conserve les données métier ; Redis conserve les sessions runtime ; MinIO conserve les médias originaux et les sorties HLS/thumbnails.
+En production, placer Streamfolio derrière HTTPS et conserver `STREAMFOLIO_COOKIE_SECURE=true`. Redis doit être durable ou externalisé si les sessions doivent survivre à une coupure de service Redis. PostgreSQL conserve les données métier ; Redis conserve les sessions runtime ; MinIO conserve les sorties HLS/thumbnails générées, avec disque local comme staging FFmpeg.
 
 ## Validation
 
@@ -92,7 +92,7 @@ Un workflow dédié `Main Merge Validation` relance la validation complète apr�
 - PostgreSQL conserve les données métier ; Redis conserve les sessions runtime.
 - Le cookie applicatif reste `HttpOnly` et `SameSite=Strict` ; Redis ne change pas le contrat public de l'API.
 - Docker Compose sert de socle d'évaluation avec PostgreSQL, Redis et MinIO.
-- FFmpeg reste local pour le transcodage ; MinIO sert de stockage objet pour les médias et sorties générées.
+- FFmpeg reste local pour le transcodage ; MinIO sert de stockage objet pour les sorties générées.
 - Les jobs de transcodage sont persistés et relançables par l'ordonnanceur après redémarrage backend.
 
 ## Documentation
