@@ -32,8 +32,11 @@ public class AsyncConfig {
         ThreadPoolTaskScheduler scheduler = new ThreadPoolTaskScheduler();
         scheduler.setPoolSize(Math.max(1, workers));
         scheduler.setThreadNamePrefix("transcode-scheduler-");
-        scheduler.setWaitForTasksToCompleteOnShutdown(true);
+        scheduler.setWaitForTasksToCompleteOnShutdown(false);
         scheduler.setAwaitTerminationSeconds(Math.max(1, awaitTerminationSeconds));
+        scheduler.setContinueExistingPeriodicTasksAfterShutdownPolicy(false);
+        scheduler.setExecuteExistingDelayedTasksAfterShutdownPolicy(false);
+        scheduler.setRemoveOnCancelPolicy(true);
         scheduler.initialize();
         return scheduler;
     }
