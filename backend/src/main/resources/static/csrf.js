@@ -32,6 +32,11 @@
       .find(([key]) => key === name)?.slice(1).join('=') || '';
   }
 
+  function writeCsrfCookie(token) {
+    if (!token) return;
+    document.cookie = `XSRF-TOKEN=${encodeURIComponent(token)}; Path=/; SameSite=Lax`;
+  }
+
   async function loadCsrf(force = false) {
     if (!force && csrfState?.token) return csrfState;
     if (!force && pendingCsrf) return pendingCsrf;
@@ -46,6 +51,7 @@
       })
       .then((payload) => {
         csrfState = payload;
+        writeCsrfCookie(payload.token);
         return payload;
       })
       .finally(() => {
@@ -65,7 +71,8 @@
     const payload = await loadCsrf(force);
     const headers = new Headers(init.headers || (input instanceof Request ? input.headers : undefined));
     const token = readCookie('XSRF-TOKEN') || payload.token;
-    headers.set(payload.headerName || 'X-XSRF-TOKEN', token);
+    writeCsrfCookie(token);
+    headers.set(payload.headerName || 'X-XSRF-TOKEN', decodeURIComponent(token));
     return { ...init, headers, credentials: credentialsFor(input, init) };
   }
 

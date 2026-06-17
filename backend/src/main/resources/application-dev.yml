@@ -2,3 +2,7 @@ spring:
   h2:
     console:
       enabled: true
+
+streamfolio:
+  security:
+    cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}

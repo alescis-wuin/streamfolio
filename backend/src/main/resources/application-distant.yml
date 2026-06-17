@@ -1,0 +1,6 @@
+server:
+  forward-headers-strategy: framework
+
+streamfolio:
+  security:
+    cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:true}
