@@ -9,6 +9,7 @@ import dev.sey.streamfolio.streaming.MediaStorageService;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
@@ -29,6 +30,7 @@ public class TranscodeJobWorker {
         this(jobs, assets, transcodingService, mediaStorage, Duration.ofSeconds(5), Duration.ofMinutes(2));
     }
 
+    @Autowired
     public TranscodeJobWorker(TranscodeJobRepository jobs,
                               MediaAssetRepository assets,
                               TranscodingService transcodingService,
