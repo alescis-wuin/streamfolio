@@ -50,7 +50,7 @@
   }
 
   function identifierHelp() {
-    return `<span class='identifier-help-wrap'><span class='identifier-help' tabindex='0' aria-label='${escapeHtml(IDENTIFIER_HELP)}'>?</span><span class='identifier-tooltip' role='tooltip'>${escapeHtml(IDENTIFIER_HELP)}</span></span>`;
+    return `<span class='identifier-help-wrap'><span class='identifier-help' tabindex='0' aria-label='Aide sur l’identifiant'>?</span><span class='identifier-tooltip' role='tooltip'>${escapeHtml(IDENTIFIER_HELP)}</span></span>`;
   }
 
   function identifierLabelText() {
