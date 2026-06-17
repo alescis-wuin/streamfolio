@@ -52,6 +52,14 @@ streamfolio:
   media:
     storage: classpath
     root: ./data/media
+  minio:
+    enabled: ${STREAMFOLIO_MINIO_ENABLED:false}
+    endpoint: ${STREAMFOLIO_MINIO_ENDPOINT:http://localhost:9000}
+    public-endpoint: ${STREAMFOLIO_MINIO_PUBLIC_ENDPOINT:http://localhost:9000}
+    bucket: ${STREAMFOLIO_MINIO_BUCKET:streamfolio-media}
+    access-key: ${STREAMFOLIO_MINIO_ACCESS_KEY:streamfolio}
+    secret-key: ${STREAMFOLIO_MINIO_SECRET_KEY:streamfolio-minio-secret}
+    auto-create-bucket: ${STREAMFOLIO_MINIO_AUTO_CREATE_BUCKET:true}
   admin:
     upload:
       max-video-size: 4GB
@@ -63,10 +71,25 @@ streamfolio:
     probe-timeout: PT5S
     transcode-timeout: PT5M
     hls-segment-time: 4
+    hls-flags: independent_segments+temp_file
+    hls-playlist-type: vod
+    thumbnail-count: 6
     hardware-acceleration: ${STREAMFOLIO_FFMPEG_HARDWARE_ACCELERATION:auto}
     nvidia-encoder: ${STREAMFOLIO_FFMPEG_NVIDIA_ENCODER:h264_nvenc}
+    nvidia-preset: ${STREAMFOLIO_FFMPEG_NVIDIA_PRESET:fast}
+    cpu-preset: ${STREAMFOLIO_FFMPEG_CPU_PRESET:veryfast}
   transcoding:
     workers: ${STREAMFOLIO_TRANSCODING_WORKERS:3}
+    queue-capacity: ${STREAMFOLIO_TRANSCODING_QUEUE_CAPACITY:64}
+    scheduler-workers: ${STREAMFOLIO_TRANSCODING_SCHEDULER_WORKERS:1}
+    scheduler-batch-size: ${STREAMFOLIO_TRANSCODING_SCHEDULER_BATCH_SIZE:16}
+    scheduler-initial-delay-ms: ${STREAMFOLIO_TRANSCODING_SCHEDULER_INITIAL_DELAY_MS:3000}
+    scheduler-interval-ms: ${STREAMFOLIO_TRANSCODING_SCHEDULER_INTERVAL_MS:5000}
+    max-attempts: ${STREAMFOLIO_TRANSCODING_MAX_ATTEMPTS:3}
+    initial-retry-delay: ${STREAMFOLIO_TRANSCODING_INITIAL_RETRY_DELAY:PT5S}
+    max-retry-delay: ${STREAMFOLIO_TRANSCODING_MAX_RETRY_DELAY:PT2M}
+    restart-retry-delay: ${STREAMFOLIO_TRANSCODING_RESTART_RETRY_DELAY:PT10S}
+    await-termination-seconds: ${STREAMFOLIO_TRANSCODING_AWAIT_TERMINATION_SECONDS:30}
 
 logging:
   level:
