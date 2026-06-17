@@ -4,3 +4,5 @@ streamfolio:
     root: ${STREAMFOLIO_MEDIA_ROOT:./data/media}
   security:
     cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
+  minio:
+    enabled: ${STREAMFOLIO_MINIO_ENABLED:false}
