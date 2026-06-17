@@ -10,6 +10,9 @@ spring:
     multipart:
       max-file-size: 4GB
       max-request-size: 5GB
+  data:
+    redis:
+      url: ${STREAMFOLIO_REDIS_URL:redis://localhost:6379}
   datasource:
     # Volatile development database. Use the docker or postgres profile for durable data.
     url: jdbc:h2:mem:streamfolio;MODE=PostgreSQL;DATABASE_TO_UPPER=false;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
@@ -38,6 +41,7 @@ spring:
 streamfolio:
   security:
     session-ttl: PT30M
+    session-key-prefix: ${STREAMFOLIO_SESSION_KEY_PREFIX:streamfolio:sessions:}
     session-cleanup-initial-delay-ms: 300000
     session-cleanup-interval-ms: 300000
     cookie-name: STREAMFOLIO_SESSION

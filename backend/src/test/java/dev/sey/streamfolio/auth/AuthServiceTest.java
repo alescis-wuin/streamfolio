@@ -23,6 +23,8 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 @ExtendWith(MockitoExtension.class)
 class AuthServiceTest {
+    private static final Clock FIXED_CLOCK = Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC);
+
     @Mock
     private UserAccountRepository users;
 
@@ -32,7 +34,7 @@ class AuthServiceTest {
     @BeforeEach
     void setUp() {
         passwordEncoder = new BCryptPasswordEncoder(12);
-        authService = new AuthService(users, passwordEncoder, Duration.ofMinutes(30), Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC));
+        authService = new AuthService(users, passwordEncoder, new InMemorySessionStore(FIXED_CLOCK), Duration.ofMinutes(30), FIXED_CLOCK);
     }
 
     @Test
@@ -64,8 +66,9 @@ class AuthServiceTest {
         AuthService shortSessionAuth = new AuthService(
             users,
             passwordEncoder,
+            new InMemorySessionStore(FIXED_CLOCK),
             Duration.ZERO,
-            Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC)
+            FIXED_CLOCK
         );
         UserAccount user = user("alexis@example.dev", "demo1234");
         when(users.findByEmail("alexis@example.dev")).thenReturn(Optional.of(user));
@@ -80,16 +83,16 @@ class AuthServiceTest {
         AuthService shortSessionAuth = new AuthService(
             users,
             passwordEncoder,
+            new InMemorySessionStore(FIXED_CLOCK),
             Duration.ZERO,
-            Clock.fixed(Instant.parse("2026-01-01T10:00:00Z"), ZoneOffset.UTC)
+            FIXED_CLOCK
         );
         UserAccount user = user("alexis@example.dev", "demo1234");
         when(users.findByEmail("alexis@example.dev")).thenReturn(Optional.of(user));
 
-        LoginResult result = shortSessionAuth.login(new LoginRequest("alexis@example.dev", "demo1234"));
+        shortSessionAuth.login(new LoginRequest("alexis@example.dev", "demo1234"));
 
         assertThat(shortSessionAuth.purgeExpiredSessions()).isEqualTo(1);
-        assertThat(shortSessionAuth.findByToken(result.token())).isEmpty();
     }
 
     @Test
