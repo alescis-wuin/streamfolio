@@ -12,6 +12,9 @@ import dev.sey.streamfolio.repository.MediaAssetRepository;
 import dev.sey.streamfolio.repository.TranscodeJobRepository;
 import dev.sey.streamfolio.repository.UserProgressRepository;
 import dev.sey.streamfolio.repository.WatchlistItemRepository;
+import dev.sey.streamfolio.streaming.MediaStorageMode;
+import dev.sey.streamfolio.streaming.MediaStorageService;
+import dev.sey.streamfolio.transcoding.TranscodeJobService;
 import java.text.Normalizer;
 import java.time.Year;
 import java.util.ArrayList;
@@ -24,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +46,10 @@ public class AdminMediaService {
     private final WatchlistItemRepository watchlist;
     private final MediaUploadStorageService storage;
     private final MediaDurationService durations;
+    private final MediaSourceValidationService sourceValidation;
+    private final MediaStorageService mediaStorage;
+    private final TranscodeJobService transcodeJobService;
+    private final boolean autoTranscode;
 
     public AdminMediaService(CatalogTitleRepository titles,
                              CatalogVideoRepository videos,
@@ -50,7 +58,11 @@ public class AdminMediaService {
                              UserProgressRepository progress,
                              WatchlistItemRepository watchlist,
                              MediaUploadStorageService storage,
-                             MediaDurationService durations) {
+                             MediaDurationService durations,
+                             MediaSourceValidationService sourceValidation,
+                             MediaStorageService mediaStorage,
+                             TranscodeJobService transcodeJobService,
+                             @Value("${streamfolio.admin.upload.auto-transcode:true}") boolean autoTranscode) {
         this.titles = titles;
         this.videos = videos;
         this.assets = assets;
@@ -59,6 +71,10 @@ public class AdminMediaService {
         this.watchlist = watchlist;
         this.storage = storage;
         this.durations = durations;
+        this.sourceValidation = sourceValidation;
+        this.mediaStorage = mediaStorage;
+        this.transcodeJobService = transcodeJobService;
+        this.autoTranscode = autoTranscode;
     }
 
     @Transactional(readOnly = true)
@@ -103,12 +119,14 @@ public class AdminMediaService {
                                 String videoTitle,
                                 String label,
                                 Integer durationSeconds,
+                                String publicationStatus,
                                 MultipartFile media,
                                 MultipartFile subtitles,
                                 MultipartFile poster,
                                 MultipartFile backdrop) {
         String cleanTitle = requiredText(title, "Titre manquant.");
         StoredMediaFile storedMedia = storage.storeVideo(media);
+        validateStoredMedia(storedMedia);
         StoredMediaFile storedSubtitles = storage.storeOptionalSubtitle(subtitles);
         StoredMediaFile storedPoster = isMissing(poster) ? null : storage.storePoster(poster);
         StoredMediaFile storedBackdrop = isMissing(backdrop) ? null : storage.storeBackdrop(backdrop);
@@ -139,6 +157,7 @@ public class AdminMediaService {
             storedMedia.storedFilename(),
             storedSubtitles.storedFilename()
         );
+        video.updatePublicationStatus(safePublicationStatus(publicationStatus, CatalogVideo.STATUS_PUBLISHED));
         catalogTitle.addVideo(video);
         CatalogTitle savedTitle = titles.save(catalogTitle);
         CatalogVideo savedVideo = savedTitle.getVideos().get(0);
@@ -150,6 +169,7 @@ public class AdminMediaService {
             storedMedia.contentType(),
             storedMedia.sizeBytes()
         ));
+        startTranscodeAfterUpload(savedVideo);
         return AdminVideoDto.from(savedVideo, asset);
     }
 
@@ -180,6 +200,9 @@ public class AdminMediaService {
             textOrDefault(request.videoTitle(), video.getVideoTitle()),
             nextDuration
         );
+        if (request.publicationStatus() != null) {
+            video.updatePublicationStatus(safePublicationStatus(request.publicationStatus(), video.getPublicationStatus()));
+        }
         CatalogVideo savedVideo = videos.save(video);
         MediaAsset asset = assets.findByVideo(savedVideo).orElse(null);
         return AdminVideoDto.from(savedVideo, asset);
@@ -273,6 +296,21 @@ public class AdminMediaService {
         refreshType(title);
     }
 
+    private void validateStoredMedia(StoredMediaFile storedMedia) {
+        try {
+            sourceValidation.validateVideo(storedMedia);
+        } catch (RuntimeException exception) {
+            storage.deleteQuietly(storedMedia.storedPath());
+            throw exception;
+        }
+    }
+
+    private void startTranscodeAfterUpload(CatalogVideo video) {
+        if (autoTranscode && mediaStorage.mode() != MediaStorageMode.CLASSPATH) {
+            transcodeJobService.submit(video.getId(), false);
+        }
+    }
+
     private List<CatalogVideo> filteredVideos(String query, String type, String genre) {
         ContentType requestedType = parseType(type);
         String normalizedQuery = normalize(query);
@@ -313,6 +351,7 @@ public class AdminMediaService {
         haystack.add(video.getAssetFilename());
         haystack.add(video.getTitle().getTitle());
         haystack.add(video.getTitle().getSynopsis());
+        haystack.add(video.getPublicationStatus());
         haystack.addAll(video.getTitle().getGenres());
         return haystack.stream().filter(Objects::nonNull).anyMatch(value -> normalize(value).contains(normalizedQuery));
     }
@@ -328,6 +367,7 @@ public class AdminMediaService {
             case "type" -> Comparator.comparing(item -> item.type().name());
             case "genre" -> Comparator.comparing(item -> firstGenre(item.genres()), String.CASE_INSENSITIVE_ORDER);
             case "synopsis" -> Comparator.comparing(AdminVideoDto::synopsis, String.CASE_INSENSITIVE_ORDER);
+            case "publicationStatus" -> Comparator.comparing(AdminVideoDto::publicationStatus, String.CASE_INSENSITIVE_ORDER);
             case "assetStatus" -> Comparator.comparing(item -> item.assetStatus() == null ? "" : item.assetStatus().name());
             default -> Comparator.comparing(AdminVideoDto::title, String.CASE_INSENSITIVE_ORDER);
         };
@@ -412,6 +452,14 @@ public class AdminMediaService {
         return value == null || value.isBlank() ? fallback : value.trim();
     }
 
+    private String safePublicationStatus(String value, String fallback) {
+        String clean = textOrDefault(value, fallback).toUpperCase(Locale.ROOT);
+        if (!CatalogVideo.STATUS_DRAFT.equals(clean) && !CatalogVideo.STATUS_PUBLISHED.equals(clean)) {
+            throw new BadRequestException("Statut de publication invalide. Valeurs: DRAFT, PUBLISHED.");
+        }
+        return clean;
+    }
+
     private Set<String> parseGenres(String value) {
         if (value == null || value.isBlank()) {
             return Set.of("Demo");
@@ -432,30 +480,24 @@ public class AdminMediaService {
         String base = slugify(title);
         String candidate = base;
         int suffix = 2;
-        while (true) {
-            var existing = titles.findBySlug(candidate);
-            if (existing.isEmpty() || Objects.equals(existing.get().getId(), currentTitleId)) {
-                return candidate;
-            }
+        while (titles.findBySlug(candidate).filter(existing -> !Objects.equals(existing.getId(), currentTitleId)).isPresent()) {
             candidate = base + "-" + suffix++;
         }
+        return candidate;
     }
 
     private String slugify(String value) {
-        String normalized = Normalizer.normalize(requiredText(value, "Titre manquant."), Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "")
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
             .toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("(^-|-$)", "");
-        return normalized.isBlank() ? "video" : normalized;
+        return normalized.isBlank() ? "media" : normalized;
     }
 
     private String normalize(String value) {
-        if (value == null) {
-            return "";
-        }
-        return Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "")
+        return value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
             .toLowerCase(Locale.ROOT)
             .trim();
     }

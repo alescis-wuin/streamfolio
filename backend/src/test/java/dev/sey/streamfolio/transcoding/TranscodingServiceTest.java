@@ -1,6 +1,7 @@
 package dev.sey.streamfolio.transcoding;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.when;
 
 import dev.sey.streamfolio.catalog.CatalogService;
@@ -11,6 +12,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -75,6 +77,14 @@ class TranscodingServiceTest {
         assertThat(second.message()).contains("presentes");
     }
 
+    @Test
+    void stopsVariantWhenCancellationTokenIsAlreadyRaised() {
+        when(catalogService.findVideo(1L)).thenReturn(video());
+
+        assertThatThrownBy(() -> transcodingService.transcodeVariant(1L, "360p", true, TranscodingService.ProgressReporter.noop(), () -> true))
+            .isInstanceOf(TranscodeCancelledException.class);
+    }
+
     private CatalogVideo video() {
         return new CatalogVideo(1, 1, "Film", "Lecture complète", 12, "aurora-drift.mp4", "aurora-drift.vtt");
     }
@@ -94,6 +104,18 @@ class TranscodingServiceTest {
 
         @Override
         public CommandResult runOrThrow(List<String> command, Duration timeout) {
+            return writeFakeOutput(command);
+        }
+
+        @Override
+        public CommandResult runOrThrow(List<String> command, Duration timeout, BooleanSupplier cancellationRequested) {
+            if (cancellationRequested != null && cancellationRequested.getAsBoolean()) {
+                throw new TranscodeCancelledException("cancelled");
+            }
+            return writeFakeOutput(command);
+        }
+
+        private CommandResult writeFakeOutput(List<String> command) {
             Path output = Path.of(command.get(command.size() - 1));
             Path outputDirectory = output.getParent();
             try {

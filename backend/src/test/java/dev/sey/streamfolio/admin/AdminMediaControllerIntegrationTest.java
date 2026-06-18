@@ -54,6 +54,8 @@ class AdminMediaControllerIntegrationTest {
         registry.add("streamfolio.media.root", MEDIA_ROOT::toString);
         registry.add("streamfolio.admin.upload.max-video-size", () -> "20MB");
         registry.add("streamfolio.admin.upload.max-image-size", () -> "2MB");
+        registry.add("streamfolio.admin.upload.auto-transcode", () -> "false");
+        registry.add("streamfolio.admin.upload.validation.reject-invalid", () -> "false");
     }
 
     @BeforeEach
@@ -121,6 +123,34 @@ class AdminMediaControllerIntegrationTest {
 
         assertThat(catalogService.catalog(null, null, null, null).get(0).title())
             .isEqualTo("Admin Recommendation Latest");
+    }
+
+    @Test
+    void draftVideosStayOutOfPublicCatalogUntilPublished() throws Exception {
+        Cookie session = login();
+        UploadedVideo draft = upload(session, "Draft Publication Demo", "draft media");
+
+        mockMvc.perform(put("/api/admin/videos/" + draft.videoId())
+                .with(csrf())
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicationStatus\":\"DRAFT\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.publicationStatus").value("DRAFT"));
+
+        assertThat(catalogService.catalog("Draft Publication Demo", null, null, null)).isEmpty();
+
+        mockMvc.perform(put("/api/admin/videos/" + draft.videoId())
+                .with(csrf())
+                .cookie(session)
+                .contentType(MediaType.APPLICATION_JSON)
+                .content("{\"publicationStatus\":\"PUBLISHED\"}"))
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.publicationStatus").value("PUBLISHED"));
+
+        assertThat(catalogService.catalog("Draft Publication Demo", null, null, null))
+            .extracting("title")
+            .contains("Draft Publication Demo");
     }
 
     @Test

@@ -44,6 +44,7 @@ class StreamingLocalMediaIntegrationTest {
     static void localMediaProperties(DynamicPropertyRegistry registry) {
         registry.add("streamfolio.media.storage", () -> "local");
         registry.add("streamfolio.media.root", MEDIA_ROOT::toString);
+        registry.add("streamfolio.media.classpath-fallback", () -> "false");
     }
 
     @BeforeEach

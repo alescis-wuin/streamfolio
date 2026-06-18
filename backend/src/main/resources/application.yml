@@ -50,7 +50,7 @@ streamfolio:
     cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
     cookie-same-site: Strict
   media:
-    storage: classpath
+    storage: ${STREAMFOLIO_MEDIA_STORAGE:local}
     root: ./data/media
   minio:
     enabled: ${STREAMFOLIO_MINIO_ENABLED:false}
@@ -65,6 +65,16 @@ streamfolio:
       max-video-size: 4GB
       max-subtitle-size: 2MB
       max-image-size: 10MB
+      memory-threshold: ${STREAMFOLIO_UPLOAD_MEMORY_THRESHOLD:64MB}
+      workers: ${STREAMFOLIO_UPLOAD_WORKERS:2}
+      queue-capacity: ${STREAMFOLIO_UPLOAD_QUEUE_CAPACITY:16}
+      auto-transcode: ${STREAMFOLIO_AUTO_TRANSCODE:true}
+      validation:
+        enabled: ${STREAMFOLIO_SOURCE_VALIDATION_ENABLED:true}
+        reject-invalid: ${STREAMFOLIO_SOURCE_VALIDATION_REJECT_INVALID:false}
+        require-duration: ${STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_DURATION:false}
+        require-video-stream: ${STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_VIDEO_STREAM:false}
+        allowed-video-codecs: ${STREAMFOLIO_SOURCE_VALIDATION_CODECS:h264,hevc,vp8,vp9,av1,mpeg4,mpeg2video,theora,wmv3,msmpeg4v3,mjpeg}
   ffmpeg:
     binary: ${STREAMFOLIO_FFMPEG_BINARY:ffmpeg}
     probe-binary: ${STREAMFOLIO_FFMPEG_PROBE_BINARY:ffprobe}
@@ -73,6 +83,7 @@ streamfolio:
     hls-segment-time: 4
     hls-flags: independent_segments+temp_file
     hls-playlist-type: vod
+    hls-variants: ${STREAMFOLIO_HLS_VARIANTS:360p:640:360:800k:1000000,720p:1280:720:2800k:3200000,1080p:1920:1080:5000k:5600000}
     thumbnail-count: 6
     hardware-acceleration: ${STREAMFOLIO_FFMPEG_HARDWARE_ACCELERATION:auto}
     nvidia-encoder: ${STREAMFOLIO_FFMPEG_NVIDIA_ENCODER:h264_nvenc}

@@ -24,7 +24,7 @@ import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import org.springframework.web.context.WebApplicationContext;
 
-@SpringBootTest
+@SpringBootTest(properties = "streamfolio.media.storage=classpath")
 class SecurityIntegrationTest {
     private static final String SESSION_COOKIE = "STREAMFOLIO_SESSION";
 
@@ -143,7 +143,7 @@ class SecurityIntegrationTest {
 
         mockMvc.perform(post("/api/auth/logout").with(csrf()).cookie(session))
             .andExpect(status().isNoContent())
-            .andExpect(header().string(HttpHeaders.SET_COOKIE, containsString("Max-Age=0")));
+            .andExpect(cookie().maxAge(SESSION_COOKIE, 0));
 
         mockMvc.perform(get("/api/me").cookie(session))
             .andExpect(status().isUnauthorized());

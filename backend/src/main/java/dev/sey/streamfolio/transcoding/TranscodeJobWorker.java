@@ -9,6 +9,7 @@ import dev.sey.streamfolio.streaming.MediaStorageService;
 import java.nio.file.Path;
 import java.time.Duration;
 import java.util.List;
+import java.util.function.BooleanSupplier;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Async;
@@ -20,6 +21,7 @@ public class TranscodeJobWorker {
     private final MediaAssetRepository assets;
     private final TranscodingService transcodingService;
     private final MediaStorageService mediaStorage;
+    private final TranscodeCancellationRegistry cancellationRegistry;
     private final Duration initialRetryDelay;
     private final Duration maxRetryDelay;
 
@@ -27,7 +29,7 @@ public class TranscodeJobWorker {
                               MediaAssetRepository assets,
                               TranscodingService transcodingService,
                               MediaStorageService mediaStorage) {
-        this(jobs, assets, transcodingService, mediaStorage, Duration.ofSeconds(5), Duration.ofMinutes(2));
+        this(jobs, assets, transcodingService, mediaStorage, new TranscodeCancellationRegistry(), Duration.ofSeconds(5), Duration.ofMinutes(2));
     }
 
     @Autowired
@@ -35,12 +37,14 @@ public class TranscodeJobWorker {
                               MediaAssetRepository assets,
                               TranscodingService transcodingService,
                               MediaStorageService mediaStorage,
+                              TranscodeCancellationRegistry cancellationRegistry,
                               @Value("${streamfolio.transcoding.initial-retry-delay:PT5S}") Duration initialRetryDelay,
                               @Value("${streamfolio.transcoding.max-retry-delay:PT2M}") Duration maxRetryDelay) {
         this.jobs = jobs;
         this.assets = assets;
         this.transcodingService = transcodingService;
         this.mediaStorage = mediaStorage;
+        this.cancellationRegistry = cancellationRegistry;
         this.initialRetryDelay = initialRetryDelay == null ? Duration.ofSeconds(5) : initialRetryDelay;
         this.maxRetryDelay = maxRetryDelay == null ? Duration.ofMinutes(2) : maxRetryDelay;
     }
@@ -56,9 +60,10 @@ public class TranscodeJobWorker {
             reconcileParent(job.getParentJobId());
             return;
         }
+        cancellationRegistry.clear(jobId);
         markRunning(jobId, "Worker " + job.getWorkItem() + " demarre.");
         try {
-            HlsTranscodeResult result = runWorkItem(job);
+            HlsTranscodeResult result = runWorkItem(job, cancellationRegistry.token(jobId));
             markDone(jobId, result.playlist().toString(), result.message());
             reconcileParent(job.getParentJobId());
         } catch (TranscodeCancelledException exception) {
@@ -70,13 +75,15 @@ public class TranscodeJobWorker {
         }
     }
 
-    private HlsTranscodeResult runWorkItem(TranscodeJob job) {
+    private HlsTranscodeResult runWorkItem(TranscodeJob job, BooleanSupplier cancellationRequested) {
         String workItem = job.getWorkItem();
         Long videoId = job.getVideo().getId();
         if (TranscodeJob.WORK_ITEM_THUMBNAILS.equals(workItem)) {
-            return transcodingService.generateTimelineThumbnails(videoId, job.isForce(), (progress, message) -> updateProgress(job.getId(), progress, message));
+            return transcodingService.generateTimelineThumbnails(videoId, job.isForce(),
+                (progress, message) -> updateProgress(job.getId(), progress, message), cancellationRequested);
         }
-        return transcodingService.transcodeVariant(videoId, workItem, job.isForce(), (progress, message) -> updateProgress(job.getId(), progress, message));
+        return transcodingService.transcodeVariant(videoId, workItem, job.isForce(),
+            (progress, message) -> updateProgress(job.getId(), progress, message), cancellationRequested);
     }
 
     private void reconcileParent(Long parentJobId) {
@@ -157,6 +164,9 @@ public class TranscodeJobWorker {
 
     private void updateProgress(Long jobId, int progress, String message) {
         jobs.findById(jobId).ifPresent(job -> {
+            if (job.isCancellationRequested()) {
+                cancellationRegistry.request(jobId);
+            }
             job.updateProgress(progress, message);
             jobs.save(job);
             if (job.getParentJobId() != null) {
@@ -169,6 +179,7 @@ public class TranscodeJobWorker {
         jobs.findById(jobId).ifPresent(job -> {
             job.markDone(outputPath, message);
             jobs.save(job);
+            cancellationRegistry.clear(jobId);
         });
     }
 
@@ -179,6 +190,7 @@ public class TranscodeJobWorker {
                 job.markQueuedForRetry(delay, "Nouvel essai dans " + delay.toSeconds() + " s apres echec: " + message);
             } else {
                 job.markFailed(message);
+                cancellationRegistry.clear(jobId);
             }
             jobs.save(job);
         });
@@ -188,6 +200,7 @@ public class TranscodeJobWorker {
         jobs.findById(jobId).ifPresent(job -> {
             job.markCancelled(message);
             jobs.save(job);
+            cancellationRegistry.clear(jobId);
         });
     }
 

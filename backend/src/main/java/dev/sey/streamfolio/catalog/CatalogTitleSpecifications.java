@@ -1,6 +1,7 @@
 package dev.sey.streamfolio.catalog;
 
 import dev.sey.streamfolio.domain.CatalogTitle;
+import dev.sey.streamfolio.domain.CatalogVideo;
 import dev.sey.streamfolio.domain.ContentType;
 import jakarta.persistence.criteria.JoinType;
 import jakarta.persistence.criteria.SetJoin;
@@ -12,7 +13,7 @@ final class CatalogTitleSpecifications {
     }
 
     static Specification<CatalogTitle> filtered(String search, ContentType type, String genre) {
-        Specification<CatalogTitle> spec = (root, query, builder) -> builder.conjunction();
+        Specification<CatalogTitle> spec = hasPublishedVideo();
         Specification<CatalogTitle> typeSpec = hasType(type);
         Specification<CatalogTitle> genreSpec = hasGenre(genre);
         Specification<CatalogTitle> searchSpec = matches(search);
@@ -27,6 +28,14 @@ final class CatalogTitleSpecifications {
             spec = spec.and(searchSpec);
         }
         return spec;
+    }
+
+    private static Specification<CatalogTitle> hasPublishedVideo() {
+        return (root, query, builder) -> {
+            query.distinct(true);
+            var videos = root.join("videos", JoinType.INNER);
+            return builder.equal(videos.get("publicationStatus"), CatalogVideo.STATUS_PUBLISHED);
+        };
     }
 
     private static Specification<CatalogTitle> hasType(ContentType type) {
