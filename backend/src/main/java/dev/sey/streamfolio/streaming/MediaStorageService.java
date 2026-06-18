@@ -27,22 +27,29 @@ public class MediaStorageService {
     private final MediaStorageMode mode;
     private final Path root;
     private final MinioMediaGateway minio;
+    private final boolean classpathFallback;
 
     public MediaStorageService(String storage, String root) {
-        this(storage, root, (MinioMediaGateway) null);
+        this(storage, root, null, false);
     }
 
     @Autowired
     public MediaStorageService(@Value("${streamfolio.media.storage:local}") String storage,
                                @Value("${streamfolio.media.root:./data/media}") String root,
+                               @Value("${streamfolio.media.classpath-fallback:true}") boolean classpathFallback,
                                ObjectProvider<MinioMediaGateway> minio) {
-        this(storage, root, minio == null ? null : minio.getIfAvailable());
+        this(storage, root, minio == null ? null : minio.getIfAvailable(), classpathFallback);
     }
 
     MediaStorageService(String storage, String root, MinioMediaGateway minio) {
+        this(storage, root, minio, false);
+    }
+
+    MediaStorageService(String storage, String root, MinioMediaGateway minio, boolean classpathFallback) {
         this.mode = MediaStorageMode.from(storage);
         this.root = Path.of(root).toAbsolutePath().normalize();
         this.minio = minio;
+        this.classpathFallback = classpathFallback;
     }
 
     public Resource video(String filename) {
@@ -164,7 +171,7 @@ public class MediaStorageService {
         if (Files.isRegularFile(local) && Files.isReadable(local)) {
             return new FileSystemResource(local);
         }
-        return classpath(filename);
+        return classpathFallback ? classpath(filename) : new FileSystemResource(local);
     }
 
     private Resource minioOrLocal(String directory, String filename, Path fallback) {
