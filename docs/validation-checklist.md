@@ -75,18 +75,41 @@ Dans un second terminal :
 - `/api/admin/**` refuse les comptes sans rôle `ADMIN` ;
 - `/h2-console/` n'est pas accessible hors profil `dev`.
 
-## 5. Validation catalogue paginé
+## 5. Validation publication média
+
+- `USER` connecté → `GET /api/videos/{draftId}` renvoie `404` ;
+- `USER` connecté → `GET /api/videos/{draftId}/stream` renvoie `404` ;
+- `USER` connecté → `GET /api/videos/{draftId}/hls/master.m3u8` renvoie `404` ;
+- `USER` connecté → `GET /api/videos/{draftId}/subtitles` renvoie `404` ;
+- `USER` connecté → `GET /api/videos/{draftId}/thumbnails/manifest.json` renvoie `404` ;
+- `ADMIN` connecté → `GET /api/admin/videos/{draftId}/preview` renvoie `200` ;
+- les previews admin exposent des URLs sous `/api/admin/videos/{draftId}/preview/**`, jamais sous les endpoints publics.
+
+## 6. Validation catalogue paginé
 
 - `GET /api/catalog?page=0&size=12` renvoie `items` et `pagination` ;
 - `GET /api/catalog?query=botanical&type=SERIES&genre=Botanique&page=0&size=2` renvoie uniquement les séries attendues ;
 - `size` supérieur à la limite configurée renvoie `400` ;
 - `page` négatif renvoie `400`.
 
-## 6. Validation UI
+## 7. Validation admin paginée
 
-Parcours recommandé : login, accueil, Films, Séries, recherche, fiche détail, watchlist, lecture, sous-titres, reprise de progression, administration, logout, puis refus d'une URL vidéo directe sans session.
+- `GET /api/admin/videos?page=0&size=20` renvoie `items` et `pagination` ;
+- les filtres `query`, `type` et `genre` sont appliqués côté base de données ;
+- les IDs de sélection globale restent disponibles via `GET /api/admin/videos/ids` ;
+- les utilisateurs sans rôle `ADMIN` reçoivent `403` sur tous les endpoints `/api/admin/**`.
 
-## 7. Validation E2E
+## 8. Validation UI
+
+Parcours recommandé : login, accueil, Films, Séries, recherche, fiche détail, watchlist, lecture, sélection manuelle de qualité HLS si HLS est disponible, sous-titres, reprise de progression, administration, logout, puis refus d'une URL vidéo directe sans session.
+
+## 9. Validation profil production
+
+- Le profil `prod` doit démarrer avec des cookies de session sécurisés ;
+- une configuration production non sécurisée doit arrêter le démarrage ;
+- le profil `prod` doit utiliser une base persistante, Redis durable et un stockage média externe ou persistant.
+
+## 10. Validation E2E
 
 ```bash
 npm install
@@ -100,7 +123,7 @@ Ou :
 bash scripts/e2e.sh
 ```
 
-## 8. Validation CI
+## 11. Validation CI
 
 [![Dernière CI verte](https://github.com/alescis-wuin/streamfolio/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/alescis-wuin/streamfolio/actions/workflows/ci.yml?query=branch%3Amain)
 
@@ -108,7 +131,7 @@ La CI GitHub Actions exécute : installation Java/Node, installation `jq` et FFm
 
 Elle est déclenchée automatiquement sur push vers `main` ou `develop`, pull request vers `main` ou `develop`, et lancement manuel via `workflow_dispatch`.
 
-## 9. Passage à la phase suivante
+## 12. Passage à la phase suivante
 
 La phase suivante ne doit commencer que si :
 
