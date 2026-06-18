@@ -12,6 +12,9 @@ import dev.sey.streamfolio.repository.MediaAssetRepository;
 import dev.sey.streamfolio.repository.TranscodeJobRepository;
 import dev.sey.streamfolio.repository.UserProgressRepository;
 import dev.sey.streamfolio.repository.WatchlistItemRepository;
+import dev.sey.streamfolio.streaming.MediaStorageMode;
+import dev.sey.streamfolio.streaming.MediaStorageService;
+import dev.sey.streamfolio.transcoding.TranscodeJobService;
 import java.text.Normalizer;
 import java.time.Year;
 import java.util.ArrayList;
@@ -24,6 +27,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -42,6 +46,9 @@ public class AdminMediaService {
     private final WatchlistItemRepository watchlist;
     private final MediaUploadStorageService storage;
     private final MediaDurationService durations;
+    private final MediaStorageService mediaStorage;
+    private final TranscodeJobService transcodeJobService;
+    private final boolean autoTranscode;
 
     public AdminMediaService(CatalogTitleRepository titles,
                              CatalogVideoRepository videos,
@@ -50,7 +57,10 @@ public class AdminMediaService {
                              UserProgressRepository progress,
                              WatchlistItemRepository watchlist,
                              MediaUploadStorageService storage,
-                             MediaDurationService durations) {
+                             MediaDurationService durations,
+                             MediaStorageService mediaStorage,
+                             TranscodeJobService transcodeJobService,
+                             @Value("${streamfolio.admin.upload.auto-transcode:true}") boolean autoTranscode) {
         this.titles = titles;
         this.videos = videos;
         this.assets = assets;
@@ -59,6 +69,9 @@ public class AdminMediaService {
         this.watchlist = watchlist;
         this.storage = storage;
         this.durations = durations;
+        this.mediaStorage = mediaStorage;
+        this.transcodeJobService = transcodeJobService;
+        this.autoTranscode = autoTranscode;
     }
 
     @Transactional(readOnly = true)
@@ -150,6 +163,7 @@ public class AdminMediaService {
             storedMedia.contentType(),
             storedMedia.sizeBytes()
         ));
+        startTranscodeAfterUpload(savedVideo);
         return AdminVideoDto.from(savedVideo, asset);
     }
 
@@ -271,6 +285,12 @@ public class AdminMediaService {
         }
 
         refreshType(title);
+    }
+
+    private void startTranscodeAfterUpload(CatalogVideo video) {
+        if (autoTranscode && mediaStorage.mode() != MediaStorageMode.CLASSPATH) {
+            transcodeJobService.submit(video.getId(), false);
+        }
     }
 
     private List<CatalogVideo> filteredVideos(String query, String type, String genre) {
@@ -432,30 +452,24 @@ public class AdminMediaService {
         String base = slugify(title);
         String candidate = base;
         int suffix = 2;
-        while (true) {
-            var existing = titles.findBySlug(candidate);
-            if (existing.isEmpty() || Objects.equals(existing.get().getId(), currentTitleId)) {
-                return candidate;
-            }
+        while (titles.findBySlug(candidate).filter(existing -> !Objects.equals(existing.getId(), currentTitleId)).isPresent()) {
             candidate = base + "-" + suffix++;
         }
+        return candidate;
     }
 
     private String slugify(String value) {
-        String normalized = Normalizer.normalize(requiredText(value, "Titre manquant."), Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "")
+        String normalized = Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
             .toLowerCase(Locale.ROOT)
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("(^-|-$)", "");
-        return normalized.isBlank() ? "video" : normalized;
+        return normalized.isBlank() ? "media" : normalized;
     }
 
     private String normalize(String value) {
-        if (value == null) {
-            return "";
-        }
-        return Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}+", "")
+        return value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFD)
+            .replaceAll("\\p{M}", "")
             .toLowerCase(Locale.ROOT)
             .trim();
     }
