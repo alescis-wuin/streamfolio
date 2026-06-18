@@ -11,7 +11,7 @@ import org.springframework.stereotype.Service;
 
 @Service
 @Primary
-@ConditionalOnProperty(name = "streamfolio.security.session-store", havingValue = "memory")
+@ConditionalOnProperty(name = "streamfolio.security.session-store", havingValue = "memory", matchIfMissing = true)
 public class LocalSessionStore implements SessionStore {
     private final Clock clock;
     private final Map<String, StoredSession> sessions = new ConcurrentHashMap<>();
