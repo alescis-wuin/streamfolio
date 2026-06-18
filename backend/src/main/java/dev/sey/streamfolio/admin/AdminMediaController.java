@@ -78,13 +78,14 @@ public class AdminMediaController {
                                 @RequestParam(required = false) String videoTitle,
                                 @RequestParam(required = false) String label,
                                 @RequestParam(required = false) Integer durationSeconds,
+                                @RequestParam(required = false) String publicationStatus,
                                 @RequestPart MultipartFile media,
                                 @RequestPart(required = false) MultipartFile subtitles,
                                 @RequestPart(required = false) MultipartFile poster,
                                 @RequestPart(required = false) MultipartFile backdrop) {
         return adminMedia.upload(
             title, releaseYear, genres, synopsis, tagline, maturityRating, runtimeMinutes,
-            videoTitle, label, durationSeconds, media, subtitles, poster, backdrop
+            videoTitle, label, durationSeconds, publicationStatus, media, subtitles, poster, backdrop
         );
     }
 
