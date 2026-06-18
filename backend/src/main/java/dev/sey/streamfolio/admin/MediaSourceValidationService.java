@@ -2,6 +2,7 @@ package dev.sey.streamfolio.admin;
 
 import dev.sey.streamfolio.common.BadRequestException;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Arrays;
@@ -78,9 +79,8 @@ public class MediaSourceValidationService {
     }
 
     private byte[] header(Path path, int size) {
-        try {
-            byte[] bytes = Files.readAllBytes(path);
-            return bytes.length <= size ? bytes : Arrays.copyOf(bytes, size);
+        try (InputStream input = Files.newInputStream(path)) {
+            return input.readNBytes(size);
         } catch (IOException exception) {
             return new byte[0];
         }
