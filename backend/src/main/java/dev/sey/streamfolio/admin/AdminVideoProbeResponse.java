@@ -12,6 +12,9 @@ public record AdminVideoProbeResponse(Integer durationSeconds,
                                       String formatName,
                                       String formatLongName,
                                       String encoder,
+                                      String videoCodec,
+                                      boolean hasVideoStream,
+                                      boolean hasAudioStream,
                                       Map<String, String> tags) {
     public static AdminVideoProbeResponse from(MediaProbeMetadata metadata) {
         return new AdminVideoProbeResponse(
@@ -24,6 +27,9 @@ public record AdminVideoProbeResponse(Integer durationSeconds,
             metadata.formatName(),
             metadata.formatLongName(),
             metadata.encoder(),
+            metadata.videoCodec(),
+            metadata.hasVideoStream(),
+            metadata.hasAudioStream(),
             metadata.tags()
         );
     }
