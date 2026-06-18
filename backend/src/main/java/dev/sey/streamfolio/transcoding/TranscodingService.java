@@ -224,7 +224,7 @@ public class TranscodingService {
     }
 
     private Path sourcePath(CatalogVideo video) {
-        Path source = mediaStorage.localOriginalPath(video.getAssetFilename());
+        Path source = mediaStorage.stageOriginalForTranscoding(video.getAssetFilename());
         if (!Files.isRegularFile(source) || !Files.isReadable(source)) {
             throw new NotFoundException("Fichier source introuvable pour transcodage: " + video.getAssetFilename());
         }
