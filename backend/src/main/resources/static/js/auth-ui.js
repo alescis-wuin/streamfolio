@@ -1,7 +1,8 @@
 (() => {
   const app = document.querySelector('#app');
-  const IDENTIFIER_PATTERN = '(?:[A-Za-z0-9._%+\\-]+@[A-Za-z0-9.\\-]+\\.[A-Za-z]{2,}|[A-Za-z0-9_]{3,40})';
+  const IDENTIFIER_PATTERN = '(?:[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}|[A-Za-z0-9_]{3,40})';
   const IDENTIFIER_HELP = 'Identifiant : adresse e-mail valide ou nom d\'utilisateur composé uniquement de lettres, chiffres et underscores.';
+  const registrationDraft = { identifier: '', password: '' };
   let userPromise = null;
   let userCache = undefined;
   let handlingSubmit = false;
@@ -90,8 +91,8 @@
           <p class='lead'>Crée un compte simple avec le rôle USER. Ce rôle permet de consulter le catalogue et interdit l'administration.</p>
           ${error ? `<p class='error-state' role='alert'>${escapeHtml(error)}</p>` : ''}
           <form data-register-form>
-            <div class='form-field'><label for='register-identifier'>${identifierLabelText()}</label><input id='register-identifier' name='identifier' autocomplete='username' pattern='${IDENTIFIER_PATTERN}' placeholder='adresse@example.dev ou nom_utilisateur' title='${escapeHtml(IDENTIFIER_HELP)}' required></div>
-            <div class='form-field'><label for='register-password'>Mot de passe</label><input id='register-password' name='password' type='password' autocomplete='new-password' minlength='8' required></div>
+            <div class='form-field'><label for='register-identifier'>${identifierLabelText()}</label><input id='register-identifier' name='identifier' autocomplete='username' pattern='${IDENTIFIER_PATTERN}' placeholder='adresse@example.dev ou nom_utilisateur' title='${escapeHtml(IDENTIFIER_HELP)}' value='${escapeHtml(registrationDraft.identifier)}' required></div>
+            <div class='form-field'><label for='register-password'>Mot de passe</label><input id='register-password' name='password' type='password' autocomplete='new-password' minlength='8' value='${escapeHtml(registrationDraft.password)}' required></div>
             <button class='btn primary' type='submit'>Créer le compte</button>
           </form>
           <p class='muted'><a href='#/' data-show-login>Retour à la connexion</a></p>
@@ -106,6 +107,8 @@
       identifier: String(data.get('identifier') || '').trim(),
       password: String(data.get('password') || ''),
     };
+    registrationDraft.identifier = payload.identifier;
+    registrationDraft.password = payload.password;
     const response = await fetch('/api/auth/register', {
       method: 'POST',
       credentials: 'same-origin',
@@ -126,6 +129,8 @@
       throw new Error(message);
     }
     userCache = await response.json().then((body) => body.user).catch(() => null);
+    registrationDraft.identifier = '';
+    registrationDraft.password = '';
     location.hash = '#/';
     location.reload();
   }
@@ -154,6 +159,13 @@
     enhanceLoginPage();
     protectAdminUi(shellVisible && !document.querySelector('[data-login-form]'));
   }
+
+  document.addEventListener('input', (event) => {
+    const form = event.target.closest('[data-register-form]');
+    if (!form) return;
+    if (event.target.name === 'identifier') registrationDraft.identifier = event.target.value;
+    if (event.target.name === 'password') registrationDraft.password = event.target.value;
+  });
 
   document.addEventListener('submit', async (event) => {
     const form = event.target.closest('[data-register-form]');
