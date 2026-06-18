@@ -50,7 +50,7 @@ streamfolio:
     cookie-secure: ${STREAMFOLIO_COOKIE_SECURE:false}
     cookie-same-site: Strict
   media:
-    storage: classpath
+    storage: ${STREAMFOLIO_MEDIA_STORAGE:local}
     root: ./data/media
   minio:
     enabled: ${STREAMFOLIO_MINIO_ENABLED:false}
