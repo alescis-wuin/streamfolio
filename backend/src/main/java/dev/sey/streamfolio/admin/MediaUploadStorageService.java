@@ -1,6 +1,8 @@
 package dev.sey.streamfolio.admin;
 
 import dev.sey.streamfolio.common.BadRequestException;
+import dev.sey.streamfolio.streaming.MediaStorageService;
+import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
@@ -14,6 +16,10 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.Locale;
 import java.util.Set;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.CompletionException;
+import java.util.concurrent.Executor;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.Resource;
@@ -30,43 +36,14 @@ public class MediaUploadStorageService {
         ".dv", ".rm", ".rmvb", ".mod", ".tod", ".dat"
     );
     private static final Set<String> MEDIA_TYPES = Set.of(
-        "video/mp4",
-        "video/x-m4v",
-        "video/quicktime",
-        "video/x-ms-wmv",
-        "video/x-ms-asf",
-        "application/vnd.ms-asf",
-        "video/x-msvideo",
-        "video/avi",
-        "video/msvideo",
-        "video/vnd.avi",
-        "application/x-msvideo",
-        "application/x-troff-msvideo",
-        "video/x-matroska",
-        "application/x-matroska",
-        "video/webm",
-        "video/x-flv",
-        "application/x-flv",
-        "video/flv",
-        "video/x-f4v",
-        "application/f4v",
-        "video/mp2t",
-        "video/vnd.dlna.mpeg-tts",
-        "video/mpeg",
-        "video/x-mpeg",
-        "video/ogg",
-        "application/ogg",
-        "video/3gpp",
-        "video/3gpp2",
-        "application/vnd.apple.mpegurl",
-        "application/x-mpegurl",
-        "application/x-shockwave-flash",
-        "application/vnd.adobe.flash.movie",
-        "video/dv",
-        "video/x-dv",
-        "application/vnd.rn-realmedia",
-        "video/vnd.rn-realvideo",
-        "application/octet-stream"
+        "video/mp4", "video/x-m4v", "video/quicktime", "video/x-ms-wmv", "video/x-ms-asf",
+        "application/vnd.ms-asf", "video/x-msvideo", "video/avi", "video/msvideo", "video/vnd.avi",
+        "application/x-msvideo", "application/x-troff-msvideo", "video/x-matroska", "application/x-matroska",
+        "video/webm", "video/x-flv", "application/x-flv", "video/flv", "video/x-f4v", "application/f4v",
+        "video/mp2t", "video/vnd.dlna.mpeg-tts", "video/mpeg", "video/x-mpeg", "video/ogg", "application/ogg",
+        "video/3gpp", "video/3gpp2", "application/vnd.apple.mpegurl", "application/x-mpegurl",
+        "application/x-shockwave-flash", "application/vnd.adobe.flash.movie", "video/dv", "video/x-dv",
+        "application/vnd.rn-realmedia", "video/vnd.rn-realvideo", "application/octet-stream"
     );
     private static final Set<String> SUBTITLE_EXTENSIONS = Set.of(".vtt");
     private static final Set<String> SUBTITLE_TYPES = Set.of("text/vtt", "text/plain", "application/octet-stream");
@@ -78,19 +55,30 @@ public class MediaUploadStorageService {
     private final long maxVideoBytes;
     private final long maxSubtitleBytes;
     private final long maxImageBytes;
+    private final long memoryThresholdBytes;
+    private final MediaStorageService mediaStorage;
+    private final Executor persistenceExecutor;
 
     public MediaUploadStorageService(@Value("${streamfolio.media.root:./data/media}") String root,
                                      @Value("${streamfolio.admin.upload.max-video-size:4GB}") DataSize maxVideoSize,
                                      @Value("${streamfolio.admin.upload.max-subtitle-size:2MB}") DataSize maxSubtitleSize,
-                                     @Value("${streamfolio.admin.upload.max-image-size:10MB}") DataSize maxImageSize) {
+                                     @Value("${streamfolio.admin.upload.max-image-size:10MB}") DataSize maxImageSize,
+                                     @Value("${streamfolio.admin.upload.memory-threshold:64MB}") DataSize memoryThreshold,
+                                     MediaStorageService mediaStorage,
+                                     @Qualifier("mediaPersistenceTaskExecutor") Executor persistenceExecutor) {
         this.root = Path.of(root).toAbsolutePath().normalize();
         this.maxVideoBytes = maxVideoSize.toBytes();
         this.maxSubtitleBytes = maxSubtitleSize.toBytes();
         this.maxImageBytes = maxImageSize.toBytes();
+        this.memoryThresholdBytes = Math.max(0, memoryThreshold.toBytes());
+        this.mediaStorage = mediaStorage;
+        this.persistenceExecutor = persistenceExecutor;
     }
 
     public StoredMediaFile storeVideo(MultipartFile file) {
-        return store(file, "originals", MEDIA_EXTENSIONS, MEDIA_TYPES, maxVideoBytes, null);
+        StoredMediaFile stored = store(file, "originals", MEDIA_EXTENSIONS, MEDIA_TYPES, maxVideoBytes, null);
+        publishStoredFile("originals", stored);
+        return stored;
     }
 
     public StoredMediaFile storeTemporaryVideo(MultipartFile file) {
@@ -98,14 +86,18 @@ public class MediaUploadStorageService {
     }
 
     public StoredMediaFile storeSubtitle(MultipartFile file) {
-        return store(file, "subtitles", SUBTITLE_EXTENSIONS, SUBTITLE_TYPES, maxSubtitleBytes, null);
+        StoredMediaFile stored = store(file, "subtitles", SUBTITLE_EXTENSIONS, SUBTITLE_TYPES, maxSubtitleBytes, null);
+        publishStoredFile("subtitles", stored);
+        return stored;
     }
 
     public StoredMediaFile storeOptionalSubtitle(MultipartFile file) {
         if (!isMissing(file)) {
             return storeSubtitle(file);
         }
-        return storeGeneratedSubtitle();
+        StoredMediaFile stored = storeGeneratedSubtitle();
+        publishStoredFile("subtitles", stored);
+        return stored;
     }
 
     public StoredMediaFile storePoster(MultipartFile file) {
@@ -139,12 +131,21 @@ public class MediaUploadStorageService {
     private StoredMediaFile store(MultipartFile file, String directory, Set<String> extensions,
                                   Set<String> contentTypes, long maxBytes, String publicKind) {
         UploadCandidate candidate = validate(file, extensions, contentTypes, maxBytes);
+        byte[] memoryBuffer = memoryBuffer(file);
         Path directoryPath = root.resolve(directory).normalize();
+        try {
+            return CompletableFuture.supplyAsync(() -> persist(file, candidate, directoryPath, publicKind, memoryBuffer), persistenceExecutor).join();
+        } catch (CompletionException exception) {
+            throw storageException(exception.getCause());
+        }
+    }
+
+    private StoredMediaFile persist(MultipartFile file, UploadCandidate candidate, Path directoryPath, String publicKind, byte[] memoryBuffer) {
         try {
             Files.createDirectories(directoryPath);
             MessageDigest digest = MessageDigest.getInstance("SHA-256");
             Path temp = Files.createTempFile(directoryPath, "upload-", ".tmp");
-            try (InputStream input = new DigestInputStream(file.getInputStream(), digest)) {
+            try (InputStream raw = inputFor(file, memoryBuffer); InputStream input = new DigestInputStream(raw, digest)) {
                 Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
             }
             String sha = HexFormat.of().formatHex(digest.digest());
@@ -161,16 +162,7 @@ public class MediaUploadStorageService {
                 Files.deleteIfExists(temp);
             }
             String publicPath = publicKind == null ? null : "/api/media/images/" + publicKind + "/" + storedFilename;
-            return new StoredMediaFile(
-                storedFilename,
-                candidate.originalName(),
-                sha,
-                candidate.contentType(),
-                file.getSize(),
-                created,
-                publicPath,
-                target
-            );
+            return new StoredMediaFile(storedFilename, candidate.originalName(), sha, candidate.contentType(), file.getSize(), created, publicPath, target);
         } catch (NoSuchAlgorithmException exception) {
             throw new BadRequestException("SHA-256 indisponible.");
         } catch (IOException exception) {
@@ -190,16 +182,7 @@ public class MediaUploadStorageService {
                 Files.copy(input, temp, StandardCopyOption.REPLACE_EXISTING);
             }
             String sha = HexFormat.of().formatHex(digest.digest());
-            return new StoredMediaFile(
-                temp.getFileName().toString(),
-                candidate.originalName(),
-                sha,
-                candidate.contentType(),
-                file.getSize(),
-                true,
-                null,
-                temp
-            );
+            return new StoredMediaFile(temp.getFileName().toString(), candidate.originalName(), sha, candidate.contentType(), file.getSize(), true, null, temp);
         } catch (NoSuchAlgorithmException exception) {
             throw new BadRequestException("SHA-256 indisponible.");
         } catch (IOException exception) {
@@ -228,6 +211,32 @@ public class MediaUploadStorageService {
         } catch (IOException exception) {
             throw new BadRequestException("Impossible de preparer les sous-titres: " + exception.getMessage());
         }
+    }
+
+    private byte[] memoryBuffer(MultipartFile file) {
+        if (file.getSize() > memoryThresholdBytes) {
+            return null;
+        }
+        try {
+            return file.getBytes();
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de lire le fichier en memoire: " + exception.getMessage());
+        }
+    }
+
+    private InputStream inputFor(MultipartFile file, byte[] memoryBuffer) throws IOException {
+        return memoryBuffer == null ? file.getInputStream() : new ByteArrayInputStream(memoryBuffer);
+    }
+
+    private void publishStoredFile(String directory, StoredMediaFile stored) {
+        mediaStorage.publishOriginal(directory, stored.storedFilename(), stored.storedPath(), stored.contentType());
+    }
+
+    private BadRequestException storageException(Throwable throwable) {
+        if (throwable instanceof BadRequestException badRequestException) {
+            return badRequestException;
+        }
+        return new BadRequestException("Impossible de stocker le fichier: " + (throwable == null ? "erreur inconnue" : throwable.getMessage()));
     }
 
     private UploadCandidate validate(MultipartFile file, Set<String> extensions, Set<String> contentTypes, long maxBytes) {
