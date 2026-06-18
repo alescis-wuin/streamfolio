@@ -26,6 +26,23 @@ public class AsyncConfig {
         return executor;
     }
 
+    @Bean(name = "mediaPersistenceTaskExecutor")
+    ThreadPoolTaskExecutor mediaPersistenceTaskExecutor(@Value("${streamfolio.admin.upload.workers:2}") int workers,
+                                                        @Value("${streamfolio.admin.upload.queue-capacity:16}") int queueCapacity,
+                                                        @Value("${streamfolio.transcoding.await-termination-seconds:30}") int awaitTerminationSeconds) {
+        int poolSize = Math.max(1, workers);
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(poolSize);
+        executor.setMaxPoolSize(poolSize);
+        executor.setQueueCapacity(Math.max(poolSize, queueCapacity));
+        executor.setThreadNamePrefix("media-persist-");
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(Math.max(1, awaitTerminationSeconds));
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        return executor;
+    }
+
     @Bean(name = "transcodeTaskScheduler")
     ThreadPoolTaskScheduler transcodeTaskScheduler(@Value("${streamfolio.transcoding.scheduler-workers:1}") int workers,
                                                    @Value("${streamfolio.transcoding.await-termination-seconds:30}") int awaitTerminationSeconds) {
