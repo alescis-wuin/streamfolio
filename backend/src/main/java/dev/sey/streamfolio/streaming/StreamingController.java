@@ -36,7 +36,7 @@ public class StreamingController {
 
     @GetMapping("/{videoId}/stream")
     public ResponseEntity<Resource> stream(@PathVariable Long videoId) {
-        CatalogVideo video = catalogService.findVideo(videoId);
+        CatalogVideo video = findPublishedVideo(videoId);
         Resource resource = mediaStorage.video(video.getAssetFilename());
         if (!resource.exists() || !resource.isReadable()) {
             throw new NotFoundException("Fichier vidéo introuvable: " + video.getAssetFilename());
@@ -51,7 +51,7 @@ public class StreamingController {
 
     @GetMapping("/{videoId}/hls/**")
     public ResponseEntity<Resource> hls(@PathVariable Long videoId, HttpServletRequest request) {
-        catalogService.findVideo(videoId);
+        findPublishedVideo(videoId);
         String filename = nestedFilename(videoId, request, "/hls/");
         Resource resource = mediaStorage.hlsSegment(videoId, filename);
         if (!resource.exists() || !resource.isReadable()) {
@@ -65,7 +65,7 @@ public class StreamingController {
 
     @GetMapping("/{videoId}/thumbnails/**")
     public ResponseEntity<Resource> thumbnails(@PathVariable Long videoId, HttpServletRequest request) {
-        catalogService.findVideo(videoId);
+        findPublishedVideo(videoId);
         String filename = nestedFilename(videoId, request, "/thumbnails/");
         Resource resource = mediaStorage.thumbnail(videoId, filename);
         if (!resource.exists() || !resource.isReadable()) {
@@ -79,7 +79,7 @@ public class StreamingController {
 
     @GetMapping(value = "/{videoId}/subtitles", produces = "text/vtt;charset=UTF-8")
     public ResponseEntity<Resource> subtitles(@PathVariable Long videoId) {
-        CatalogVideo video = catalogService.findVideo(videoId);
+        CatalogVideo video = findPublishedVideo(videoId);
         Resource resource = mediaStorage.subtitles(video.getSubtitleFilename());
         if (!resource.exists() || !resource.isReadable()) {
             throw new NotFoundException("Sous-titres introuvables: " + video.getSubtitleFilename());
@@ -88,6 +88,14 @@ public class StreamingController {
             .contentType(MediaType.parseMediaType("text/vtt;charset=UTF-8"))
             .cacheControl(CacheControl.maxAge(7, TimeUnit.DAYS).cachePublic())
             .body(resource);
+    }
+
+    private CatalogVideo findPublishedVideo(Long videoId) {
+        CatalogVideo video = catalogService.findVideo(videoId);
+        if (!CatalogVideo.STATUS_PUBLISHED.equals(video.getPublicationStatus())) {
+            throw new NotFoundException("Vidéo introuvable: " + videoId);
+        }
+        return video;
     }
 
     private String nestedFilename(Long videoId, HttpServletRequest request, String section) {
