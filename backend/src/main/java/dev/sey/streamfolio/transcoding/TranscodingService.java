@@ -285,7 +285,14 @@ public class TranscodingService {
     }
 
     private List<String> thumbnailCommand(Path source, int second, Path output) {
-        return List.of(ffmpeg.binary(), "-y", "-ss", String.valueOf(second), "-i", source.toString(), "-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1", output.toString());
+        List<String> command = new ArrayList<>();
+        command.add(ffmpeg.binary());
+        command.addAll(List.of("-y", "-i", source.toString()));
+        if (second > 0) {
+            command.addAll(List.of("-ss", String.valueOf(second)));
+        }
+        command.addAll(List.of("-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1", output.toString()));
+        return List.copyOf(command);
     }
 
     private String scaleFilter(Variant variant) {
