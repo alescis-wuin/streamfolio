@@ -20,9 +20,10 @@ Captures : [`docs/screenshots/README.md`](docs/screenshots/README.md).
 | Domaine | Couverture |
 |---|---|
 | Authentification | Spring Security, BCrypt, cookie `HttpOnly`/`SameSite=Strict`, logout, sessions Redis avec TTL |
+| Autorisation | `/api/admin/**` réservé au rôle `ADMIN`, médias `DRAFT` masqués des endpoints publics |
 | Catalogue | Films, séries, genres, recherche, filtres, rails, hero, watchlist, progression et états `DRAFT` / `PUBLISHED` côté vidéo |
-| Streaming | HTML5, MP4 progressif, HTTP Range, WebVTT, HLS local/MinIO via hls.js |
-| Admin média | Upload mémoire-first pour petits fichiers, métadonnées, miniatures, publication `DRAFT/PUBLISHED`, annulation et relance manuelle des jobs |
+| Streaming | HTML5, MP4 progressif, HTTP Range, WebVTT, HLS local/MinIO via hls.js, sélecteur manuel de qualité HLS |
+| Admin média | Upload mémoire-first pour petits fichiers, métadonnées, miniatures, publication `DRAFT/PUBLISHED`, preview admin explicite, annulation et relance manuelle des jobs |
 | Pipeline média | File persistante, workers asynchrones bornés, ordonnanceur, reprise après redémarrage, retry exponentiel, annulation FFmpeg coopérative |
 | Persistance | H2 de démo, PostgreSQL + Flyway, Redis pour l'état de session runtime, MinIO pour originaux, sous-titres et sorties HLS/thumbnails générées |
 | Qualité | Tests Maven, tests sécurité, tests streaming/admin, smoke tests, E2E Playwright, CI GitHub Actions |
@@ -62,23 +63,15 @@ Profil recommandé :
 SPRING_PROFILES_ACTIVE=prod
 STREAMFOLIO_COOKIE_SECURE=true
 STREAMFOLIO_REDIS_URL=redis://redis:6379
-STREAMFOLIO_POSTGRES_URL=jdbc:postgresql://postgres:5432/streamfolio
-STREAMFOLIO_POSTGRES_USER=streamfolio
-STREAMFOLIO_POSTGRES_PASSWORD=change-me
-STREAMFOLIO_MINIO_ENABLED=true
 STREAMFOLIO_MEDIA_STORAGE=minio
-STREAMFOLIO_MINIO_ENDPOINT=http://minio:9000
-STREAMFOLIO_MINIO_PUBLIC_ENDPOINT=https://media.example.dev
-STREAMFOLIO_MINIO_BUCKET=streamfolio-media
-STREAMFOLIO_MINIO_ACCESS_KEY=streamfolio
-STREAMFOLIO_MINIO_SECRET_KEY=change-me
+STREAMFOLIO_MINIO_ENABLED=true
 STREAMFOLIO_SOURCE_VALIDATION_REJECT_INVALID=true
 STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_DURATION=true
 STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_VIDEO_STREAM=true
 STREAMFOLIO_HLS_VARIANTS=360p:640:360:800k:1000000,720p:1280:720:2800k:3200000,1080p:1920:1080:5000k:5600000
 ```
 
-En production, placer Streamfolio derrière HTTPS et conserver `STREAMFOLIO_COOKIE_SECURE=true`. Redis doit être durable ou externalisé si les sessions doivent survivre à une coupure de service Redis. PostgreSQL conserve les données métier ; Redis conserve les sessions runtime ; MinIO conserve les médias originaux, sous-titres et sorties HLS/thumbnails générées, avec disque local comme staging FFmpeg.
+En production, placer Streamfolio derrière HTTPS. Le profil `prod` refuse une configuration où les cookies de session ne sont pas sécurisés. PostgreSQL conserve les données métier ; Redis conserve les sessions runtime ; MinIO conserve les médias originaux, sous-titres et sorties HLS/thumbnails générées, avec disque local comme staging FFmpeg. Les identifiants PostgreSQL et MinIO doivent être fournis par l'environnement de déploiement.
 
 ## Validation
 
@@ -98,12 +91,15 @@ Un workflow dédié `Main Merge Validation` relance la validation complète apr�
 - Docker Compose sert de socle d'évaluation avec PostgreSQL, Redis et MinIO.
 - FFmpeg reste local pour le transcodage ; MinIO sert de stockage objet pour les originaux et les sorties générées.
 - Les jobs de transcodage sont persistés, relançables par l'ordonnanceur et annulables pendant les processus FFmpeg.
+- Les vidéos `DRAFT` ne sont accessibles qu'aux administrateurs via les endpoints explicites de preview.
 - La validation avancée combine extension, MIME, signature de conteneur, durée, présence de flux vidéo et politique codec.
 
 ## Documentation
 
 - [`docs/04-roadmap.md`](docs/04-roadmap.md)
 - [`docs/08-postgresql-persistence.md`](docs/08-postgresql-persistence.md)
+- [`docs/09-media-pipeline.md`](docs/09-media-pipeline.md)
+- [`docs/media-pipeline-validation.md`](docs/media-pipeline-validation.md)
 - [`docs/validation-checklist.md`](docs/validation-checklist.md)
 - [`docs/screenshots/README.md`](docs/screenshots/README.md)
 
