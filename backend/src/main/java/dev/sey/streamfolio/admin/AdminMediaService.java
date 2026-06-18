@@ -17,8 +17,6 @@ import dev.sey.streamfolio.streaming.MediaStorageService;
 import dev.sey.streamfolio.transcoding.TranscodeJobService;
 import java.text.Normalizer;
 import java.time.Year;
-import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
@@ -28,6 +26,9 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.multipart.MultipartFile;
@@ -81,22 +82,30 @@ public class AdminMediaService {
     public AdminVideoPageResponse videos(String query, String type, String genre, String sort, Integer page, Integer size) {
         int pageNumber = safePage(page);
         int pageSize = safeSize(size);
-        Map<Long, MediaAsset> assetsByVideoId = assets.findAll().stream()
-            .collect(Collectors.toMap(asset -> asset.getVideo().getId(), Function.identity(), (first, second) -> first));
+        ContentType requestedType = parseType(type);
+        Page<CatalogVideo> videoPage = videos.findAll(
+            AdminVideoSpecifications.filtered(query, requestedType, genre),
+            PageRequest.of(pageNumber, pageSize, sort(sort))
+        );
+        List<Long> videoIds = videoPage.getContent().stream().map(CatalogVideo::getId).toList();
+        Map<Long, MediaAsset> assetsByVideoId = videoIds.isEmpty()
+            ? Map.of()
+            : assets.findByVideoIdIn(videoIds).stream()
+                .collect(Collectors.toMap(asset -> asset.getVideo().getId(), Function.identity(), (first, second) -> first));
 
-        List<AdminVideoDto> filtered = filteredVideos(query, type, genre).stream()
+        List<AdminVideoDto> items = videoPage.getContent().stream()
             .map(video -> AdminVideoDto.from(video, assetsByVideoId.get(video.getId())))
-            .sorted(comparator(sort))
             .toList();
-
-        int from = Math.min(filtered.size(), pageNumber * pageSize);
-        int to = Math.min(filtered.size(), from + pageSize);
-        return AdminVideoPageResponse.of(filtered.subList(from, to), pageNumber, pageSize, filtered.size());
+        return AdminVideoPageResponse.of(items, pageNumber, pageSize, videoPage.getTotalElements());
     }
 
     @Transactional(readOnly = true)
     public List<Long> videoIds(String query, String type, String genre) {
-        return filteredVideos(query, type, genre).stream()
+        ContentType requestedType = parseType(type);
+        return videos.findAll(
+                AdminVideoSpecifications.filtered(query, requestedType, genre),
+                Sort.by(Sort.Direction.ASC, "id")
+            ).stream()
             .map(CatalogVideo::getId)
             .toList();
     }
@@ -311,17 +320,6 @@ public class AdminMediaService {
         }
     }
 
-    private List<CatalogVideo> filteredVideos(String query, String type, String genre) {
-        ContentType requestedType = parseType(type);
-        String normalizedQuery = normalize(query);
-        String normalizedGenre = normalize(genre);
-        return videos.findAllWithTitleGraph().stream()
-            .filter(video -> requestedType == null || video.getTitle().getType() == requestedType)
-            .filter(video -> normalizedGenre.isBlank() || video.getTitle().getGenres().stream().anyMatch(item -> normalize(item).equals(normalizedGenre)))
-            .filter(video -> matches(video, normalizedQuery))
-            .toList();
-    }
-
     private CatalogVideo findVideo(Long videoId) {
         return videos.findById(videoId)
             .orElseThrow(() -> new NotFoundException("Video introuvable: " + videoId));
@@ -341,42 +339,23 @@ public class AdminMediaService {
         return currentMin == Integer.MIN_VALUE ? Integer.MIN_VALUE : currentMin - 1;
     }
 
-    private boolean matches(CatalogVideo video, String normalizedQuery) {
-        if (normalizedQuery.isBlank()) {
-            return true;
-        }
-        List<String> haystack = new ArrayList<>();
-        haystack.add(video.getVideoTitle());
-        haystack.add(video.getLabel());
-        haystack.add(video.getAssetFilename());
-        haystack.add(video.getTitle().getTitle());
-        haystack.add(video.getTitle().getSynopsis());
-        haystack.add(video.getPublicationStatus());
-        haystack.addAll(video.getTitle().getGenres());
-        return haystack.stream().filter(Objects::nonNull).anyMatch(value -> normalize(value).contains(normalizedQuery));
-    }
-
-    private Comparator<AdminVideoDto> comparator(String sort) {
+    private Sort sort(String sort) {
         String[] parts = sort == null ? new String[0] : sort.split(",");
         String field = parts.length == 0 || parts[0].isBlank() ? "title" : parts[0].trim();
-        boolean desc = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim());
-        Comparator<AdminVideoDto> comparator = switch (field) {
-            case "releaseYear" -> Comparator.comparingInt(AdminVideoDto::releaseYear);
-            case "videoTitle" -> Comparator.comparing(AdminVideoDto::videoTitle, String.CASE_INSENSITIVE_ORDER);
-            case "duration" -> Comparator.comparingInt(AdminVideoDto::durationSeconds);
-            case "type" -> Comparator.comparing(item -> item.type().name());
-            case "genre" -> Comparator.comparing(item -> firstGenre(item.genres()), String.CASE_INSENSITIVE_ORDER);
-            case "synopsis" -> Comparator.comparing(AdminVideoDto::synopsis, String.CASE_INSENSITIVE_ORDER);
-            case "publicationStatus" -> Comparator.comparing(AdminVideoDto::publicationStatus, String.CASE_INSENSITIVE_ORDER);
-            case "assetStatus" -> Comparator.comparing(item -> item.assetStatus() == null ? "" : item.assetStatus().name());
-            default -> Comparator.comparing(AdminVideoDto::title, String.CASE_INSENSITIVE_ORDER);
+        Sort.Direction direction = parts.length > 1 && "desc".equalsIgnoreCase(parts[1].trim())
+            ? Sort.Direction.DESC
+            : Sort.Direction.ASC;
+        String property = switch (field) {
+            case "releaseYear" -> "title.releaseYear";
+            case "videoTitle" -> "videoTitle";
+            case "duration" -> "durationSeconds";
+            case "type" -> "title.type";
+            case "synopsis" -> "title.synopsis";
+            case "publicationStatus" -> "publicationStatus";
+            case "genre", "assetStatus" -> "title.title";
+            default -> "title.title";
         };
-        comparator = comparator.thenComparing(AdminVideoDto::videoId);
-        return desc ? comparator.reversed() : comparator;
-    }
-
-    private String firstGenre(List<String> genres) {
-        return genres == null || genres.isEmpty() ? "" : genres.get(0);
+        return Sort.by(direction, property).and(Sort.by(Sort.Direction.ASC, "id"));
     }
 
     private ContentType parseType(String type) {
@@ -493,13 +472,6 @@ public class AdminMediaService {
             .replaceAll("[^a-z0-9]+", "-")
             .replaceAll("(^-|-$)", "");
         return normalized.isBlank() ? "media" : normalized;
-    }
-
-    private String normalize(String value) {
-        return value == null ? "" : Normalizer.normalize(value, Normalizer.Form.NFD)
-            .replaceAll("\\p{M}", "")
-            .toLowerCase(Locale.ROOT)
-            .trim();
     }
 
     private boolean isMissing(MultipartFile file) {
