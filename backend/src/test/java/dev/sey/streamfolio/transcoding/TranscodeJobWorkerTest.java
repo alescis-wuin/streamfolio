@@ -59,7 +59,7 @@ class TranscodeJobWorkerTest {
     void marksVariantJobDoneWhenTranscodingSucceeds() {
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
-        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any(), any()))
             .thenAnswer(invocation -> {
                 TranscodingService.ProgressReporter reporter = invocation.getArgument(3);
                 reporter.report(45, "milieu");
@@ -77,7 +77,7 @@ class TranscodeJobWorkerTest {
     void marksVariantJobRetryingWhenTranscodingFailsAndAttemptsRemain() {
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
-        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any(), any()))
             .thenThrow(new BadRequestException("ffmpeg failed"));
 
         worker.run(11L);
@@ -94,7 +94,7 @@ class TranscodeJobWorkerTest {
         job.configureRetries(1);
         when(jobs.findById(11L)).thenReturn(Optional.of(job));
         when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
-        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any()))
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any(), any()))
             .thenThrow(new BadRequestException("ffmpeg failed"));
 
         worker.run(11L);
@@ -102,6 +102,20 @@ class TranscodeJobWorkerTest {
         assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.FAILED);
         assertThat(job.getAttemptCount()).isEqualTo(1);
         assertThat(job.getMessage()).contains("ffmpeg failed");
+        verify(jobs, atLeast(2)).save(job);
+    }
+
+    @Test
+    void marksVariantJobCancelledWhenTranscodingIsCancelled() {
+        when(jobs.findById(11L)).thenReturn(Optional.of(job));
+        when(jobs.findWithVideoById(11L)).thenReturn(Optional.of(job));
+        when(transcodingService.transcodeVariant(eq(7L), eq("360p"), eq(true), any(), any()))
+            .thenThrow(new TranscodeCancelledException("cancelled"));
+
+        worker.run(11L);
+
+        assertThat(job.getStatus()).isEqualTo(TranscodeJobStatus.CANCELLED);
+        assertThat(job.getMessage()).contains("cancelled");
         verify(jobs, atLeast(2)).save(job);
     }
 }
