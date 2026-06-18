@@ -34,25 +34,25 @@ slug() {
   printf '%s' "$1" | tr '[:upper:]' '[:lower:]' | sed -E 's/[^a-z0-9._-]+/-/g; s/^-+//; s/-+$//'
 }
 
-next_log_file() {
+begin_step() {
+  local label="$1"
   STEP=$((STEP + 1))
-  printf '%s/%03d_%s.log' "$STEPS_DIR" "$STEP" "$(slug "$1")"
+  STEP_LOG_FILE="$(printf '%s/%03d_%s.log' "$STEPS_DIR" "$STEP" "$(slug "$label")")"
+  printf '%b[%03d]%b %s\n' "$C_BLUE" "$STEP" "$C_RESET" "$label"
 }
 
 run_cmd() {
   local label="$1"
   shift
-  local log_file
-  log_file="$(next_log_file "$label")"
-  printf '%b[%03d]%b %s\n' "$C_BLUE" "$STEP" "$C_RESET" "$label"
-  printf '$ %q' "$@" > "$log_file"
-  printf '\n\n' >> "$log_file"
-  if "$@" >> "$log_file" 2>&1; then
+  begin_step "$label"
+  printf '$ %q' "$@" > "$STEP_LOG_FILE"
+  printf '\n\n' >> "$STEP_LOG_FILE"
+  if "$@" >> "$STEP_LOG_FILE" 2>&1; then
     log_ok "$label"
   else
     log_err "$label"
-    log_warn "Last 80 lines from $log_file"
-    tail -n 80 "$log_file" || true
+    log_warn "Last 80 lines from $STEP_LOG_FILE"
+    tail -n 80 "$STEP_LOG_FILE" || true
     exit 1
   fi
 }
@@ -61,16 +61,14 @@ run_shell() {
   local label="$1"
   shift
   local command="$*"
-  local log_file
-  log_file="$(next_log_file "$label")"
-  printf '%b[%03d]%b %s\n' "$C_BLUE" "$STEP" "$C_RESET" "$label"
-  printf '$ %s\n\n' "$command" > "$log_file"
-  if bash -lc "$command" >> "$log_file" 2>&1; then
+  begin_step "$label"
+  printf '$ %s\n\n' "$command" > "$STEP_LOG_FILE"
+  if bash -lc "$command" >> "$STEP_LOG_FILE" 2>&1; then
     log_ok "$label"
   else
     log_err "$label"
-    log_warn "Last 80 lines from $log_file"
-    tail -n 80 "$log_file" || true
+    log_warn "Last 80 lines from $STEP_LOG_FILE"
+    tail -n 80 "$STEP_LOG_FILE" || true
     exit 1
   fi
 }
@@ -131,7 +129,8 @@ stop_local_app() {
 trap 'stop_local_app' EXIT
 
 start_local_maven_probe() {
-  local log_file="$STEPS_DIR/local-maven-spring-boot-run.log"
+  begin_step "maven spring boot run probe"
+  local log_file="$STEP_LOG_FILE"
   log_info "Starting mvn spring-boot:run probe"
   (
     cd "$ROOT_DIR/backend"
