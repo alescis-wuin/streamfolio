@@ -57,11 +57,19 @@
 - Sessions runtime externalisées dans Redis.
 - Version Maven et README alignés sur `1.4.0`.
 
-## V1.5
+## V1.5 livrée
 
-- Sélecteur manuel de qualité HLS côté lecteur.
-- Validation source renforcée par signature, durée et codec.
+- Sélecteur manuel de qualité HLS côté lecteur hls.js, avec mode automatique par défaut.
+- Validation source renforcée par signature, durée, présence de flux vidéo et politique codec.
 - États de publication explicites `DRAFT` / `PUBLISHED`.
+- Médias non publiés masqués des endpoints publics `playback`, `stream`, HLS, sous-titres et thumbnails.
+- Preview des médias non publiés via endpoints admin explicites.
+- `/api/admin/**` réservé au rôle `ADMIN`.
+- Profil `prod` refusé si les cookies de session ne sont pas sécurisés.
+- Pagination base de données côté catalogue admin.
+
+## V1.6
+
 - Import/export JSON du catalogue.
 - Skeleton loaders.
 - États d'erreur détaillés côté UI.
@@ -69,10 +77,8 @@
 
 ## V2
 
-- Adaptateur MinIO/S3 réellement branché pour les fichiers originaux et dérivés.
-- File de jobs de transcodage robuste et relançable.
-- Pipeline média complet : upload, validation, transcodage, posters, thumbnails, variantes vidéo.
-- HLS de production avec politique d'encodage configurable.
+- File de jobs de transcodage robuste et relançable sur environnement distribué.
+- HLS de production avec politique d'encodage configurable par environnement.
 - PostgreSQL comme profil recommandé hors démo locale.
 - Recommandations basiques.
 - Profils utilisateur.
