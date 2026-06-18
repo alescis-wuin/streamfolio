@@ -125,6 +125,7 @@ public class MediaDurationService {
             collectTags(format.path("tags"), tags);
             root.path("streams").forEach(stream -> collectTags(stream.path("tags"), tags));
 
+            StreamSummary streams = streamSummary(root.path("streams"));
             Integer duration = durationFrom(format, root.path("streams")).orElse(null);
             String title = firstTag(tags, "title");
             String description = firstTag(tags, "description", "synopsis", "summary", "comment");
@@ -143,12 +144,35 @@ public class MediaDurationService {
                 formatName,
                 formatLongName,
                 encoder,
+                streams.videoCodec(),
+                streams.hasVideoStream(),
+                streams.hasAudioStream(),
                 Map.copyOf(tags)
             );
         } catch (IOException exception) {
             LOGGER.debug("Invalid ffprobe JSON metadata: {}", exception.getMessage());
             return MediaProbeMetadata.empty();
         }
+    }
+
+    private StreamSummary streamSummary(JsonNode streams) {
+        boolean hasVideo = false;
+        boolean hasAudio = false;
+        String videoCodec = null;
+        if (streams != null && streams.isArray()) {
+            for (JsonNode stream : streams) {
+                String type = stream.path("codec_type").asText("").trim().toLowerCase(Locale.ROOT);
+                if ("video".equals(type)) {
+                    hasVideo = true;
+                    if (videoCodec == null) {
+                        videoCodec = textOrNull(stream.path("codec_name").asText(null));
+                    }
+                } else if ("audio".equals(type)) {
+                    hasAudio = true;
+                }
+            }
+        }
+        return new StreamSummary(videoCodec, hasVideo, hasAudio);
     }
 
     private Optional<Integer> durationFrom(JsonNode format, JsonNode streams) {
@@ -264,6 +288,9 @@ public class MediaDurationService {
         }
     }
 
+    private record StreamSummary(String videoCodec, boolean hasVideoStream, boolean hasAudioStream) {
+    }
+
     private record ProcessOutput(int exitCode, String output, boolean timedOut) {
     }
 }
@@ -276,8 +303,11 @@ record MediaProbeMetadata(Integer durationSeconds,
                           String formatName,
                           String formatLongName,
                           String encoder,
+                          String videoCodec,
+                          boolean hasVideoStream,
+                          boolean hasAudioStream,
                           Map<String, String> tags) {
     static MediaProbeMetadata empty() {
-        return new MediaProbeMetadata(null, null, null, List.of(), null, null, null, null, Map.of());
+        return new MediaProbeMetadata(null, null, null, List.of(), null, null, null, null, null, false, false, Map.of());
     }
 }
