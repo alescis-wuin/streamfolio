@@ -46,6 +46,7 @@ public class AdminMediaService {
     private final WatchlistItemRepository watchlist;
     private final MediaUploadStorageService storage;
     private final MediaDurationService durations;
+    private final MediaSourceValidationService sourceValidation;
     private final MediaStorageService mediaStorage;
     private final TranscodeJobService transcodeJobService;
     private final boolean autoTranscode;
@@ -58,6 +59,7 @@ public class AdminMediaService {
                              WatchlistItemRepository watchlist,
                              MediaUploadStorageService storage,
                              MediaDurationService durations,
+                             MediaSourceValidationService sourceValidation,
                              MediaStorageService mediaStorage,
                              TranscodeJobService transcodeJobService,
                              @Value("${streamfolio.admin.upload.auto-transcode:true}") boolean autoTranscode) {
@@ -69,6 +71,7 @@ public class AdminMediaService {
         this.watchlist = watchlist;
         this.storage = storage;
         this.durations = durations;
+        this.sourceValidation = sourceValidation;
         this.mediaStorage = mediaStorage;
         this.transcodeJobService = transcodeJobService;
         this.autoTranscode = autoTranscode;
@@ -116,12 +119,14 @@ public class AdminMediaService {
                                 String videoTitle,
                                 String label,
                                 Integer durationSeconds,
+                                String publicationStatus,
                                 MultipartFile media,
                                 MultipartFile subtitles,
                                 MultipartFile poster,
                                 MultipartFile backdrop) {
         String cleanTitle = requiredText(title, "Titre manquant.");
         StoredMediaFile storedMedia = storage.storeVideo(media);
+        validateStoredMedia(storedMedia);
         StoredMediaFile storedSubtitles = storage.storeOptionalSubtitle(subtitles);
         StoredMediaFile storedPoster = isMissing(poster) ? null : storage.storePoster(poster);
         StoredMediaFile storedBackdrop = isMissing(backdrop) ? null : storage.storeBackdrop(backdrop);
@@ -152,6 +157,7 @@ public class AdminMediaService {
             storedMedia.storedFilename(),
             storedSubtitles.storedFilename()
         );
+        video.updatePublicationStatus(safePublicationStatus(publicationStatus, CatalogVideo.STATUS_PUBLISHED));
         catalogTitle.addVideo(video);
         CatalogTitle savedTitle = titles.save(catalogTitle);
         CatalogVideo savedVideo = savedTitle.getVideos().get(0);
@@ -194,6 +200,9 @@ public class AdminMediaService {
             textOrDefault(request.videoTitle(), video.getVideoTitle()),
             nextDuration
         );
+        if (request.publicationStatus() != null) {
+            video.updatePublicationStatus(safePublicationStatus(request.publicationStatus(), video.getPublicationStatus()));
+        }
         CatalogVideo savedVideo = videos.save(video);
         MediaAsset asset = assets.findByVideo(savedVideo).orElse(null);
         return AdminVideoDto.from(savedVideo, asset);
@@ -287,6 +296,15 @@ public class AdminMediaService {
         refreshType(title);
     }
 
+    private void validateStoredMedia(StoredMediaFile storedMedia) {
+        try {
+            sourceValidation.validateVideo(storedMedia);
+        } catch (RuntimeException exception) {
+            storage.deleteQuietly(storedMedia.storedPath());
+            throw exception;
+        }
+    }
+
     private void startTranscodeAfterUpload(CatalogVideo video) {
         if (autoTranscode && mediaStorage.mode() != MediaStorageMode.CLASSPATH) {
             transcodeJobService.submit(video.getId(), false);
@@ -333,6 +351,7 @@ public class AdminMediaService {
         haystack.add(video.getAssetFilename());
         haystack.add(video.getTitle().getTitle());
         haystack.add(video.getTitle().getSynopsis());
+        haystack.add(video.getPublicationStatus());
         haystack.addAll(video.getTitle().getGenres());
         return haystack.stream().filter(Objects::nonNull).anyMatch(value -> normalize(value).contains(normalizedQuery));
     }
@@ -348,6 +367,7 @@ public class AdminMediaService {
             case "type" -> Comparator.comparing(item -> item.type().name());
             case "genre" -> Comparator.comparing(item -> firstGenre(item.genres()), String.CASE_INSENSITIVE_ORDER);
             case "synopsis" -> Comparator.comparing(AdminVideoDto::synopsis, String.CASE_INSENSITIVE_ORDER);
+            case "publicationStatus" -> Comparator.comparing(AdminVideoDto::publicationStatus, String.CASE_INSENSITIVE_ORDER);
             case "assetStatus" -> Comparator.comparing(item -> item.assetStatus() == null ? "" : item.assetStatus().name());
             default -> Comparator.comparing(AdminVideoDto::title, String.CASE_INSENSITIVE_ORDER);
         };
@@ -430,6 +450,14 @@ public class AdminMediaService {
 
     private String textOrDefault(String value, String fallback) {
         return value == null || value.isBlank() ? fallback : value.trim();
+    }
+
+    private String safePublicationStatus(String value, String fallback) {
+        String clean = textOrDefault(value, fallback).toUpperCase(Locale.ROOT);
+        if (!CatalogVideo.STATUS_DRAFT.equals(clean) && !CatalogVideo.STATUS_PUBLISHED.equals(clean)) {
+            throw new BadRequestException("Statut de publication invalide. Valeurs: DRAFT, PUBLISHED.");
+        }
+        return clean;
     }
 
     private Set<String> parseGenres(String value) {
