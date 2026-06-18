@@ -44,7 +44,7 @@ public class MediaSourceValidationService {
         }
         SignatureResult signature = signature(stored.storedPath(), extension(stored.storedFilename()));
         MediaProbeMetadata metadata = probes.probeMetadata(stored.storedPath());
-        if (!signature.valid() && rejectInvalid) {
+        if (!signature.ok() && rejectInvalid) {
             throw new BadRequestException("Signature de conteneur video invalide: " + signature.reason());
         }
         if (requireDuration && (metadata.durationSeconds() == null || metadata.durationSeconds() <= 0)) {
@@ -159,7 +159,7 @@ public class MediaSourceValidationService {
         return bytes;
     }
 
-    private record SignatureResult(boolean valid, String reason) {
+    private record SignatureResult(boolean ok, String reason) {
         static SignatureResult valid() {
             return new SignatureResult(true, "ok");
         }
