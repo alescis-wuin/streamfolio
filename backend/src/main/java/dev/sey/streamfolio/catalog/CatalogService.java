@@ -73,6 +73,7 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public List<String> genres() {
         return titles.findAllByOrderByDisplayPriorityAscTitleAsc().stream()
+            .filter(this::hasPublishedVideo)
             .flatMap(title -> title.getGenres().stream())
             .distinct()
             .sorted(String.CASE_INSENSITIVE_ORDER)
@@ -126,6 +127,7 @@ public class CatalogService {
     @Transactional(readOnly = true)
     public TitleDetailDto detail(String slug, UserAccount user) {
         CatalogTitle title = titles.findBySlug(slug)
+            .filter(this::hasPublishedVideo)
             .orElseThrow(() -> new NotFoundException("Titre introuvable: " + slug));
         UserCatalogContext context = contextFor(user);
         TitleCardDto card = toCard(title, context);
@@ -141,12 +143,12 @@ public class CatalogService {
 
     @Transactional(readOnly = true)
     public PlaybackDto playback(Long videoId, UserAccount user) {
-        CatalogVideo video = findVideo(videoId);
+        CatalogVideo video = findPublishedVideo(videoId);
         CatalogTitle title = video.getTitle();
         UserCatalogContext context = contextFor(user);
         StreamingMode streamingMode = streamingMode(video.getId());
         String hlsUrl = streamingMode == StreamingMode.HLS_AVAILABLE ? "/api/videos/" + video.getId() + "/hls/master.m3u8" : null;
-        String thumbnailsUrl = mediaStorage.mode() == MediaStorageMode.LOCAL && mediaStorage.thumbnailManifestExists(video.getId())
+        String thumbnailsUrl = mediaStorage.mode() != MediaStorageMode.CLASSPATH && mediaStorage.thumbnailManifestExists(video.getId())
             ? "/api/videos/" + video.getId() + "/thumbnails/manifest.json"
             : null;
         return new PlaybackDto(
@@ -173,7 +175,7 @@ public class CatalogService {
     @Transactional
     public ProgressDto updateProgress(Long videoId, ProgressUpdateRequest request, UserAccount maybeUser) {
         UserAccount user = authService.requireUser(maybeUser);
-        CatalogVideo video = findVideo(videoId);
+        CatalogVideo video = findPublishedVideo(videoId);
         UserProgress progress = progressRepository.findByUserAndVideo(user, video)
             .orElseGet(() -> new UserProgress(user, video));
         progress.update(request.positionSeconds(), request.durationSeconds());
@@ -204,8 +206,17 @@ public class CatalogService {
             .orElseThrow(() -> new NotFoundException("Vidéo introuvable: " + videoId));
     }
 
+    private CatalogVideo findPublishedVideo(Long videoId) {
+        CatalogVideo video = findVideo(videoId);
+        if (!CatalogVideo.STATUS_PUBLISHED.equals(video.getPublicationStatus())) {
+            throw new NotFoundException("Vidéo introuvable: " + videoId);
+        }
+        return video;
+    }
+
     private CatalogTitle findTitle(Long titleId) {
         return titles.findById(titleId)
+            .filter(this::hasPublishedVideo)
             .orElseThrow(() -> new NotFoundException("Titre introuvable: " + titleId));
     }
 
@@ -215,9 +226,11 @@ public class CatalogService {
         }
 
         Map<Long, UserProgress> progressByVideoId = progressRepository.findByUser(user).stream()
+            .filter(progress -> CatalogVideo.STATUS_PUBLISHED.equals(progress.getVideo().getPublicationStatus()))
             .collect(Collectors.toMap(progress -> progress.getVideo().getId(), Function.identity(), (first, second) -> second));
 
         Set<Long> watchlistTitleIds = watchlistRepository.findByUser(user).stream()
+            .filter(item -> hasPublishedVideo(item.getTitle()))
             .map(item -> item.getTitle().getId())
             .collect(Collectors.toUnmodifiableSet());
 
@@ -235,21 +248,9 @@ public class CatalogService {
         int episodeCount = title.getType() == ContentType.SERIES ? titleVideos.size() : 0;
 
         return new TitleCardDto(
-            title.getId(),
-            title.getSlug(),
-            title.getTitle(),
-            title.getType(),
-            title.getReleaseYear(),
-            title.getMaturityRating(),
-            title.getRuntimeMinutes(),
-            seasonCount,
-            episodeCount,
-            title.getTagline(),
-            title.getSynopsis(),
-            List.copyOf(title.getGenres()),
-            title.getPosterPath(),
-            title.getBackdropPath(),
-            inWatchlist,
+            title.getId(), title.getSlug(), title.getTitle(), title.getType(), title.getReleaseYear(), title.getMaturityRating(),
+            title.getRuntimeMinutes(), seasonCount, episodeCount, title.getTagline(), title.getSynopsis(), List.copyOf(title.getGenres()),
+            title.getPosterPath(), title.getBackdropPath(), inWatchlist,
             titleVideos.isEmpty() ? ProgressDto.empty(1) : aggregateProgress,
             nextVideoId
         );
@@ -257,14 +258,8 @@ public class CatalogService {
 
     private VideoDto toVideoDto(CatalogVideo video, UserCatalogContext context) {
         return new VideoDto(
-            video.getId(),
-            video.getSeasonNumber(),
-            video.getEpisodeNumber(),
-            video.getLabel(),
-            video.getVideoTitle(),
-            video.getDurationSeconds(),
-            "/api/videos/" + video.getId() + "/stream",
-            "/api/videos/" + video.getId() + "/subtitles",
+            video.getId(), video.getSeasonNumber(), video.getEpisodeNumber(), video.getLabel(), video.getVideoTitle(),
+            video.getDurationSeconds(), "/api/videos/" + video.getId() + "/stream", "/api/videos/" + video.getId() + "/subtitles",
             progressFor(video, context)
         );
     }
@@ -279,7 +274,6 @@ public class CatalogService {
         if (titleVideos.isEmpty()) {
             return ProgressDto.empty(1);
         }
-
         int position = 0;
         int duration = 0;
         Instant updatedAt = null;
@@ -313,13 +307,19 @@ public class CatalogService {
     private List<CatalogVideo> uniqueVideos(CatalogTitle title) {
         Map<Long, CatalogVideo> byId = new LinkedHashMap<>();
         for (CatalogVideo video : title.getVideos()) {
-            byId.putIfAbsent(video.getId(), video);
+            if (CatalogVideo.STATUS_PUBLISHED.equals(video.getPublicationStatus())) {
+                byId.putIfAbsent(video.getId(), video);
+            }
         }
         return List.copyOf(byId.values());
     }
 
+    private boolean hasPublishedVideo(CatalogTitle title) {
+        return title != null && title.getVideos().stream().anyMatch(video -> CatalogVideo.STATUS_PUBLISHED.equals(video.getPublicationStatus()));
+    }
+
     private StreamingMode streamingMode(Long videoId) {
-        if (mediaStorage.mode() != MediaStorageMode.LOCAL) {
+        if (mediaStorage.mode() == MediaStorageMode.CLASSPATH) {
             return StreamingMode.MP4_ONLY;
         }
         return mediaStorage.hlsMasterPlaylistExists(videoId) ? StreamingMode.HLS_AVAILABLE : StreamingMode.HLS_MISSING;
