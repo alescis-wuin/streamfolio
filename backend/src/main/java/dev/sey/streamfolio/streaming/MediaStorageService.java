@@ -1,9 +1,11 @@
 package dev.sey.streamfolio.streaming;
 
 import dev.sey.streamfolio.common.BadRequestException;
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -31,7 +33,7 @@ public class MediaStorageService {
     }
 
     @Autowired
-    public MediaStorageService(@Value("${streamfolio.media.storage:classpath}") String storage,
+    public MediaStorageService(@Value("${streamfolio.media.storage:local}") String storage,
                                @Value("${streamfolio.media.root:./data/media}") String root,
                                ObjectProvider<MinioMediaGateway> minio) {
         this(storage, root, minio == null ? null : minio.getIfAvailable());
@@ -46,7 +48,7 @@ public class MediaStorageService {
     public Resource video(String filename) {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
-            case LOCAL -> new FileSystemResource(localOriginalPath(filename));
+            case LOCAL -> localOrClasspath(localOriginalPath(filename), filename);
             case MINIO -> minioOrLocal(LOCAL_ORIGINALS_DIR, safeFilename(filename), localOriginalPath(filename));
         };
     }
@@ -54,7 +56,7 @@ public class MediaStorageService {
     public Resource subtitles(String filename) {
         return switch (mode) {
             case CLASSPATH -> classpath(filename);
-            case LOCAL -> new FileSystemResource(localSubtitlePath(filename));
+            case LOCAL -> localOrClasspath(localSubtitlePath(filename), filename);
             case MINIO -> minioOrLocal(LOCAL_SUBTITLES_DIR, safeFilename(filename), localSubtitlePath(filename));
         };
     }
@@ -85,6 +87,26 @@ public class MediaStorageService {
 
     public Path localSubtitlePath(String filename) {
         return localPath(LOCAL_SUBTITLES_DIR, filename);
+    }
+
+    public Path stageOriginalForTranscoding(String filename) {
+        Path local = localOriginalPath(filename);
+        if (Files.isRegularFile(local) && Files.isReadable(local)) {
+            return local;
+        }
+        Resource bundled = classpath(filename);
+        if (!bundled.exists() || !bundled.isReadable()) {
+            return local;
+        }
+        try {
+            Files.createDirectories(local.getParent());
+            try (var input = bundled.getInputStream()) {
+                Files.copy(input, local, StandardCopyOption.REPLACE_EXISTING);
+            }
+            return local;
+        } catch (IOException exception) {
+            throw new BadRequestException("Impossible de preparer le media source pour transcodage: " + exception.getMessage());
+        }
     }
 
     public Path hlsDirectory(Long videoId) {
@@ -136,6 +158,13 @@ public class MediaStorageService {
 
     public Path root() {
         return root;
+    }
+
+    private Resource localOrClasspath(Path local, String filename) {
+        if (Files.isRegularFile(local) && Files.isReadable(local)) {
+            return new FileSystemResource(local);
+        }
+        return classpath(filename);
     }
 
     private Resource minioOrLocal(String directory, String filename, Path fallback) {
