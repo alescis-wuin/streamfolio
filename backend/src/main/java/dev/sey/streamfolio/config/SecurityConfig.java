@@ -51,6 +51,7 @@ public class SecurityConfig {
                 if (h2ConsoleEnabled) {
                     authorize.requestMatchers("/h2-console/**").permitAll();
                 }
+                authorize.requestMatchers("/api/admin/**").hasRole("ADMIN");
                 authorize.anyRequest().authenticated();
             })
             .exceptionHandling(exceptions -> exceptions
