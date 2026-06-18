@@ -72,6 +72,7 @@ export function setupPlayer(playback, options) {
     syncProgress(true);
     disposed = true;
     hlsInstance?.destroy?.();
+    clearQualitySelector();
     document.removeEventListener('keydown', onKey);
   });
 }
@@ -93,13 +94,15 @@ async function setupHlsPlayback(video, playback, status) {
       const hls = new Hls({ xhrSetup: (xhr) => { xhr.withCredentials = true; } });
       hls.loadSource(playback.hlsUrl);
       hls.attachMedia(video);
+      hls.on(Hls.Events.MANIFEST_PARSED, () => renderQualitySelector(hls, status));
+      hls.on(Hls.Events.LEVEL_SWITCHED, () => syncQualitySelector(hls));
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data?.fatal) {
           hls.destroy();
           applyMp4Fallback(video, playback, status, 'Erreur HLS détectée. Repli automatique sur MP4.');
         }
       });
-      setPlayerMode(status, 'HLS adaptatif', 'Lecture via hls.js. Fallback MP4 disponible.', 'hls');
+      setPlayerMode(status, 'HLS adaptatif', 'Lecture via hls.js. Qualité automatique active.', 'hls');
       return hls;
     }
   } catch {
@@ -108,7 +111,8 @@ async function setupHlsPlayback(video, playback, status) {
 
   if (video.canPlayType('application/vnd.apple.mpegurl')) {
     video.src = playback.hlsUrl;
-    setPlayerMode(status, 'HLS natif', 'Lecture HLS native du navigateur. Fallback MP4 disponible.', 'hls');
+    renderNativeQualityNotice();
+    setPlayerMode(status, 'HLS natif', 'Lecture HLS native du navigateur. La qualité est gérée par le navigateur.', 'hls');
     return null;
   }
 
@@ -118,6 +122,7 @@ async function setupHlsPlayback(video, playback, status) {
 
 function applyMp4Fallback(video, playback, status, reason) {
   video.src = playback.streamUrl;
+  clearQualitySelector();
   setPlayerMode(status, 'MP4 fallback', reason, 'mp4');
 }
 
@@ -147,6 +152,65 @@ function fallbackReason(playback) {
   if (playback.streamingMode === 'HLS_MISSING') return 'Playlist HLS absente. Lecture MP4 progressive.';
   if (playback.streamingMode === 'MP4_ONLY') return 'Mode démo classpath. Lecture MP4 progressive.';
   return 'Lecture MP4 progressive.';
+}
+
+function qualityControlTarget() {
+  let target = document.querySelector('#hls-quality-control');
+  if (target) return target;
+  const mode = document.querySelector('#player-mode');
+  if (!mode) return null;
+  target = document.createElement('div');
+  target.id = 'hls-quality-control';
+  target.className = 'quality-control';
+  mode.insertAdjacentElement('afterend', target);
+  return target;
+}
+
+function renderQualitySelector(hls, status) {
+  const target = qualityControlTarget();
+  const levels = Array.isArray(hls.levels) ? hls.levels : [];
+  if (!target || !levels.length) return;
+  target.innerHTML = `
+    <label for='hls-quality-select'>Qualité</label>
+    <select id='hls-quality-select' aria-label='Qualité vidéo HLS'>
+      <option value='-1'>Auto</option>
+      ${levels.map((level, index) => `<option value='${index}'>${escapeHtml(levelLabel(level, index))}</option>`).join('')}
+    </select>
+  `;
+  const select = target.querySelector('#hls-quality-select');
+  select.addEventListener('change', () => {
+    hls.currentLevel = Number(select.value);
+    if (hls.currentLevel === -1) {
+      setPlayerMode(status, 'HLS adaptatif', 'Qualité automatique active.', 'hls');
+    } else {
+      setPlayerMode(status, 'HLS qualité fixe', `Qualité forcée: ${levelLabel(hls.levels[hls.currentLevel], hls.currentLevel)}.`, 'hls');
+    }
+  });
+  syncQualitySelector(hls);
+}
+
+function syncQualitySelector(hls) {
+  const select = document.querySelector('#hls-quality-select');
+  if (!select) return;
+  const level = Number.isInteger(hls.currentLevel) && hls.currentLevel >= 0 ? hls.currentLevel : -1;
+  select.value = String(level);
+}
+
+function renderNativeQualityNotice() {
+  const target = qualityControlTarget();
+  if (!target) return;
+  target.innerHTML = `<span class='quality-note'>Qualité gérée par le navigateur.</span>`;
+}
+
+function clearQualitySelector() {
+  const target = document.querySelector('#hls-quality-control');
+  if (target) target.innerHTML = '';
+}
+
+function levelLabel(level, index) {
+  const height = level?.height ? `${level.height}p` : (level?.name || `Niveau ${index + 1}`);
+  const bitrate = level?.bitrate ? ` · ${Math.round(level.bitrate / 1000)} kb/s` : '';
+  return `${height}${bitrate}`;
 }
 
 async function loadTimeline(manifestUrl) {
