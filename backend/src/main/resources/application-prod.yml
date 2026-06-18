@@ -36,3 +36,11 @@ streamfolio:
     access-key: ${STREAMFOLIO_MINIO_ACCESS_KEY}
     secret-key: ${STREAMFOLIO_MINIO_SECRET_KEY}
     auto-create-bucket: ${STREAMFOLIO_MINIO_AUTO_CREATE_BUCKET:true}
+  admin:
+    upload:
+      auto-transcode: ${STREAMFOLIO_AUTO_TRANSCODE:true}
+      validation:
+        enabled: true
+        reject-invalid: ${STREAMFOLIO_SOURCE_VALIDATION_REJECT_INVALID:true}
+        require-duration: ${STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_DURATION:true}
+        require-video-stream: ${STREAMFOLIO_SOURCE_VALIDATION_REQUIRE_VIDEO_STREAM:true}
