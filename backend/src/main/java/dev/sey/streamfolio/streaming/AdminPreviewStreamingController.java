@@ -6,7 +6,6 @@ import dev.sey.streamfolio.domain.CatalogVideo;
 import jakarta.servlet.http.HttpServletRequest;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.util.concurrent.TimeUnit;
 import org.springframework.core.io.Resource;
 import org.springframework.http.CacheControl;
 import org.springframework.http.HttpHeaders;
