@@ -22,6 +22,13 @@ import org.springframework.transaction.support.TransactionSynchronizationManager
 
 @Service
 public class TranscodeJobService {
+    private static final List<TranscodeJobStatus> ACTIVE_BATCH_STATUSES = List.of(
+        TranscodeJobStatus.PENDING,
+        TranscodeJobStatus.RUNNING,
+        TranscodeJobStatus.RETRYING,
+        TranscodeJobStatus.CANCELLING
+    );
+
     private final CatalogService catalogService;
     private final TranscodeJobRepository jobs;
     private final MediaAssetRepository assets;
@@ -53,8 +60,18 @@ public class TranscodeJobService {
     }
 
     @Transactional
-    public TranscodeJobDto submit(Long videoId, boolean force) {
+    public synchronized TranscodeJobDto submit(Long videoId, boolean force) {
         CatalogVideo video = catalogService.findVideo(videoId);
+        List<TranscodeJob> activeBatches = jobs.findActiveByVideoAndWorkItem(
+            video,
+            TranscodeJob.WORK_ITEM_BATCH,
+            ACTIVE_BATCH_STATUSES,
+            PageRequest.of(0, 1)
+        );
+        if (!activeBatches.isEmpty()) {
+            return TranscodeJobDto.from(activeBatches.get(0));
+        }
+
         MediaAsset asset = assets.findByVideo(video).orElseGet(() -> assets.save(new MediaAsset(video)));
         if (!force && asset.getStatus() == MediaAssetStatus.READY) {
             TranscodeJob job = jobs.save(newJob(video, false, TranscodeJob.WORK_ITEM_READY, null));
