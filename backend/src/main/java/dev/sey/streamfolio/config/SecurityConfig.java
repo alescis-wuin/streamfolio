@@ -48,6 +48,7 @@ public class SecurityConfig {
                 ).permitAll();
                 authorize.requestMatchers("/js/**", "/posters/**", "/icons/**", "/assets/**").permitAll();
                 authorize.requestMatchers("/api/health", "/api/csrf", "/api/auth/login", "/api/auth/logout").permitAll();
+                authorize.requestMatchers("/api/admin/**").hasRole("ADMIN");
                 if (h2ConsoleEnabled) {
                     authorize.requestMatchers("/h2-console/**").permitAll();
                 }
@@ -55,7 +56,7 @@ public class SecurityConfig {
             })
             .exceptionHandling(exceptions -> exceptions
                 .authenticationEntryPoint((request, response, exception) -> writeJson(response, HttpStatus.UNAUTHORIZED, "Unauthorized", "Connexion requise."))
-                .accessDeniedHandler((request, response, exception) -> writeJson(response, HttpStatus.FORBIDDEN, "Forbidden", "Action refus\u00E9e ou jeton CSRF invalide."))
+                .accessDeniedHandler((request, response, exception) -> writeJson(response, HttpStatus.FORBIDDEN, "Forbidden", "Action refusée ou jeton CSRF invalide."))
             )
             .addFilterBefore(authFilter, UsernamePasswordAuthenticationFilter.class)
             .build();
