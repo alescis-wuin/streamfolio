@@ -31,6 +31,20 @@ public interface TranscodeJobRepository extends JpaRepository<TranscodeJob, Long
     @Query("""
         select job
         from TranscodeJob job
+        where job.video = :video
+          and job.workItem = :workItem
+          and job.status in :statuses
+        order by job.requestedAt desc, job.id desc
+        """)
+    List<TranscodeJob> findActiveByVideoAndWorkItem(@Param("video") CatalogVideo video,
+                                                    @Param("workItem") String workItem,
+                                                    @Param("statuses") Collection<TranscodeJobStatus> statuses,
+                                                    Pageable pageable);
+
+    @EntityGraph(attributePaths = {"video", "video.title"})
+    @Query("""
+        select job
+        from TranscodeJob job
         where job.status in :statuses
           and job.workItem <> 'batch'
           and job.cancellationRequested = false
