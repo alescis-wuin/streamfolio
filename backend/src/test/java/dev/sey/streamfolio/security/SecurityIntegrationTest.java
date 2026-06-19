@@ -12,6 +12,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.sey.streamfolio.auth.AuthService;
+import dev.sey.streamfolio.domain.UserAccount;
+import dev.sey.streamfolio.repository.UserAccountRepository;
 import jakarta.servlet.http.Cookie;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -27,9 +30,14 @@ import org.springframework.web.context.WebApplicationContext;
 @SpringBootTest(properties = "streamfolio.media.storage=classpath")
 class SecurityIntegrationTest {
     private static final String SESSION_COOKIE = "STREAMFOLIO_SESSION";
+    private static final String USER_EMAIL = "viewer@example.dev";
+    private static final String USER_PASSWORD = "viewer1234";
 
     @Autowired
     private WebApplicationContext context;
+
+    @Autowired
+    private UserAccountRepository users;
 
     private MockMvc mockMvc;
 
@@ -39,6 +47,9 @@ class SecurityIntegrationTest {
             .webAppContextSetup(context)
             .apply(springSecurity())
             .build();
+        users.findByEmail(USER_EMAIL).orElseGet(() -> users.save(
+            new UserAccount(USER_EMAIL, "Viewer", AuthService.hashPassword(USER_PASSWORD))
+        ));
     }
 
     @Test
@@ -99,6 +110,22 @@ class SecurityIntegrationTest {
     }
 
     @Test
+    void adminEndpointsRejectAuthenticatedUserWithoutAdminRole() throws Exception {
+        Cookie session = login(USER_EMAIL, USER_PASSWORD);
+
+        mockMvc.perform(get("/api/admin/videos").cookie(session))
+            .andExpect(status().isForbidden());
+    }
+
+    @Test
+    void adminEndpointsAllowAdminRole() throws Exception {
+        Cookie session = login();
+
+        mockMvc.perform(get("/api/admin/videos").cookie(session))
+            .andExpect(status().isOk());
+    }
+
+    @Test
     void authenticatedMutatingRequestsRequireCsrfToken() throws Exception {
         Cookie session = login();
 
@@ -150,10 +177,14 @@ class SecurityIntegrationTest {
     }
 
     private Cookie login() throws Exception {
+        return login("alexis@example.dev", "demo1234");
+    }
+
+    private Cookie login(String email, String password) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                 .with(csrf())
                 .contentType(MediaType.APPLICATION_JSON)
-                .content("{\"email\":\"alexis@example.dev\",\"password\":\"demo1234\"}"))
+                .content("{\"email\":\"" + email + "\",\"password\":\"" + password + "\"}"))
             .andExpect(status().isOk())
             .andReturn();
         Cookie cookie = result.getResponse().getCookie(SESSION_COOKIE);
