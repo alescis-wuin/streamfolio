@@ -10,6 +10,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import dev.sey.streamfolio.domain.CatalogVideo;
+import dev.sey.streamfolio.repository.CatalogVideoRepository;
 import jakarta.servlet.http.Cookie;
 import java.io.IOException;
 import java.io.InputStream;
@@ -38,6 +40,9 @@ class StreamingLocalMediaIntegrationTest {
     @Autowired
     private WebApplicationContext context;
 
+    @Autowired
+    private CatalogVideoRepository videos;
+
     private MockMvc mockMvc;
 
     @DynamicPropertySource
@@ -53,6 +58,7 @@ class StreamingLocalMediaIntegrationTest {
             .webAppContextSetup(context)
             .apply(springSecurity())
             .build();
+        resetDemoPublicationStatus();
         prepareLocalMedia();
     }
 
@@ -120,6 +126,38 @@ class StreamingLocalMediaIntegrationTest {
     }
 
     @Test
+    void draftVideoPublicMediaReturnsNotFoundButAdminPreviewIsAllowed() throws Exception {
+        Cookie session = login();
+        CatalogVideo video = videos.findById(1L).orElseThrow();
+        video.updatePublicationStatus(CatalogVideo.STATUS_DRAFT);
+        videos.saveAndFlush(video);
+
+        mockMvc.perform(get("/api/videos/1").cookie(session))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/videos/1/stream").cookie(session))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/videos/1/hls/master.m3u8").cookie(session))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/videos/1/thumbnails/manifest.json").cookie(session))
+            .andExpect(status().isNotFound());
+        mockMvc.perform(get("/api/videos/1/subtitles").cookie(session))
+            .andExpect(status().isNotFound());
+
+        mockMvc.perform(get("/api/admin/videos/1/preview/stream").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.ACCEPT_RANGES, "bytes"));
+        mockMvc.perform(get("/api/admin/videos/1/preview/hls/master.m3u8").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/vnd.apple.mpegurl")));
+        mockMvc.perform(get("/api/admin/videos/1/preview/thumbnails/manifest.json").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("application/json")));
+        mockMvc.perform(get("/api/admin/videos/1/preview/subtitles").cookie(session))
+            .andExpect(status().isOk())
+            .andExpect(header().string(HttpHeaders.CONTENT_TYPE, containsString("text/vtt")));
+    }
+
+    @Test
     void missingLocalVideoReturnsNotFound() throws Exception {
         Cookie session = login();
         Files.deleteIfExists(MEDIA_ROOT.resolve("originals/aurora-drift.mp4"));
@@ -150,6 +188,13 @@ class StreamingLocalMediaIntegrationTest {
         Cookie cookie = result.getResponse().getCookie(SESSION_COOKIE);
         assertThat(cookie).isNotNull();
         return cookie;
+    }
+
+    private void resetDemoPublicationStatus() {
+        videos.findById(1L).ifPresent(video -> {
+            video.updatePublicationStatus(CatalogVideo.STATUS_PUBLISHED);
+            videos.saveAndFlush(video);
+        });
     }
 
     private static Path createTempMediaRoot() {
