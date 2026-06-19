@@ -3,6 +3,7 @@ package dev.sey.streamfolio.transcoding;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -84,6 +85,6 @@ class TranscodeJobServiceTest {
         assertThat(result.id()).isEqualTo(33L);
         assertThat(result.status()).isEqualTo(TranscodeJobStatus.RUNNING);
         verify(jobs, never()).saveAndFlush(any(TranscodeJob.class));
-        verify(worker, never()).run(any());
+        verify(worker, never()).run(anyLong());
     }
 }
